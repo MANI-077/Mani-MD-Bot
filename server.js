@@ -1,20 +1,20 @@
 /**
- * ᴍᴀɴɪ ᴍᴅ ☘ - Server Entry Point
- * Combines WhatsApp Bot + Web Server + Keep-Alive
+ * ᴍᴀɴɪ ᴍᴅ ☘ - Combined Server Entry Point
+ * WhatsApp Bot + Express Web Server + Keep-Alive Monitor
  */
 
 const express = require('express');
-const http = require('http');
+const path = require('path');
 
 // ============================================
-// 1. CREATE EXPRESS SERVER FIRST
+// 1. CREATE EXPRESS SERVER
 // ============================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname + '/web'));
+app.use(express.static(path.join(__dirname, 'web')));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -27,33 +27,37 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Ping endpoint for uptime monitors
+// Ping endpoint for uptime monitors (keep bot awake)
 app.get('/ping', (req, res) => {
   res.send('Bot is alive! ✅');
 });
 
-// Home page - Pair device
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/web/index.html');
-});
-
-app.get('/pair-device', (req, res) => {
-  res.sendFile(__dirname + '/web/index.html');
+// Status page
+app.get('/status', (req, res) => {
+  res.json({
+    bot: 'ᴍᴀɴɪ ᴍᴅ ☘',
+    version: '3.0.1',
+    status: 'running',
+    uptime: process.uptime(),
+    memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
+    nodeVersion: process.version,
+    platform: process.platform
+  });
 });
 
 // ============================================
-// 2. START HTTP SERVER
+// 2. START HTTP SERVER FIRST (important for Render!)
 // ============================================
-const server = http.createServer(app);
-server.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🌐 [WEB SERVER] Running on port ${PORT}`);
-  console.log(`🌐 [WEB SERVER] Pair Device: http://localhost:${PORT}/pair-device\n`);
+  console.log(`🌐 [WEB SERVER] Pair Device: http://localhost:${PORT}/pair-device`);
+  console.log(`🌐 [WEB SERVER] Health: http://localhost:${PORT}/api/health\n`);
 });
 
 // ============================================
 // 3. KEEP-ALIVE / UPTIME MONITOR
 // ============================================
-console.log('\n🔥 [KEEP-ALIVE] Starting uptime monitor...');
+console.log('🔥 [KEEP-ALIVE] Starting uptime monitor...');
 
 // Log heartbeat every 2 minutes
 setInterval(() => {
@@ -74,93 +78,13 @@ setInterval(() => {
   }
 }, 30000);
 
-// External ping to keep server awake (for free hosting platforms)
-function pingSelf() {
-  const url = `http://localhost:${PORT}/api/health`;
-  http.get(url, (res) => {
-    let data = '';
-    res.on('data', chunk => data += chunk);
-    res.on('end', () => {
-      try {
-        const parsed = JSON.parse(data);
-        console.log(`✅ [KEEP-ALIVE] Self-ping successful - Status: ${parsed.status}`);
-      } catch (e) {}
-    });
-  }).on('error', () => {});
-}
-
-setInterval(pingSelf, 1400000); // Ping every 23 minutes (before 25min sleep timeout)
-
 // ============================================
 // 4. START WHATSAPP BOT
 // ============================================
 console.log('🤖 [BOT] Starting WhatsApp Bot...\n');
 
+// Set PORT env var for the bot
+process.env.PORT = PORT;
+
 const bot = require('./index');
 console.log('🤖 [BOT] WhatsApp Bot module loaded');
-
-// ============================================
-// 5. PAIR DEVICE API FOR EXTERNAL REQUESTS
-// ============================================
-let waSock = null;
-
-// Store reference to the socket when bot connects
-const originalStart = require('./index');
-
-// Override: expose socket via global
-setTimeout(() => {
-  // Try to get socket from the running bot
-  if (global.waSock) {
-    waSock = global.waSock;
-    setupPairAPI();
-  }
-}, 10000);
-
-function setupPairAPI() {
-  app.get('/pair', async (req, res) => {
-    try {
-      const number = req.query.number;
-      if (!number) {
-        return res.status(400).json({ error: 'Number is required. Use: /pair?number=9779807044421' });
-      }
-
-      const cleanNumber = number.replace(/[^0-9]/g, '');
-      
-      if (cleanNumber.length < 5 || cleanNumber.length > 20) {
-        return res.status(400).json({ error: 'Invalid number format' });
-      }
-
-      const whatsappID = cleanNumber + '@s.whatsapp.net';
-      const result = await waSock.onWhatsApp(whatsappID);
-
-      if (!result || result.length === 0 || !result[0]?.exists) {
-        return res.status(404).json({ error: 'This number is not registered on WhatsApp' });
-      }
-
-      const code = await waSock.requestPairingCode(cleanNumber);
-      if (code) {
-        const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-        console.log(`✅ [PAIR API] Code generated for ${cleanNumber}: ${formattedCode}`);
-        return res.json({ code: formattedCode, number: cleanNumber });
-      } else {
-        return res.status(500).json({ error: 'Failed to generate pairing code' });
-      }
-    } catch (error) {
-      console.error('[PAIR API] Error:', error.message);
-      return res.status(500).json({ error: 'Failed to generate pairing code' });
-    }
-  });
-}
-
-// Status page
-app.get('/status', (req, res) => {
-  res.json({
-    bot: 'ᴍᴀɴɪ ᴍᴅ ☘',
-    version: '3.0.1',
-    status: 'running',
-    uptime: process.uptime(),
-    memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
-    nodeVersion: process.version,
-    platform: process.platform
-  });
-});

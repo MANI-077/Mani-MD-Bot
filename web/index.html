@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ᴍᴀɴɪ ᴍᴅ ☘ - Pair Device</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+        }
+
+        .bot-name {
+            color: #4ade80;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        }
+
+        .tagline {
+            color: #a78bfa;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+            letter-spacing: 1px;
+        }
+
+        .section-title {
+            color: #e2e8f0;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #e2e8f0;
+            font-size: 1.1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            border-color: #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .input-group input::placeholder {
+            color: #64748b;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            border: none;
+            border-radius: 12px;
+            color: #0f0f23;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(74, 222, 128, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-box {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 12px;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .result-label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .result-code {
+            color: #4ade80;
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            word-break: break-all;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .instructions h4 {
+            color: #a78bfa;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status.loading {
+            display: block;
+            background: rgba(167, 139, 250, 0.1);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            color: #a78bfa;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+        }
+
+        .footer {
+            margin-top: 25px;
+            color: #475569;
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: #a78bfa;
+            text-decoration: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading-dots {
+            display: inline-block;
+            animation: pulse 1s infinite;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #a78bfa;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 3px;
+            animation: pulse 1.4s infinite ease-in-out;
+        }
+
+        .pulse-dot:nth-child(2) { animation-delay: 0.2s; }
+        .pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        /* Responsive */
+        @media (max-width: 500px) {
+            .card {
+                padding: 30px 20px;
+            }
+            .bot-name {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">☘</div>
+            <div class="bot-name">ᴍᴀɴɪ ᴍᴅ ☘</div>
+            <div class="tagline">PAIR DEVICE INTERFACE</div>
+
+            <div class="section-title">Link Your WhatsApp</div>
+
+            <div class="input-group">
+                <input type="text" id="phoneNumber" placeholder="Enter WhatsApp number (e.g. 9779807044421)" autocomplete="off">
+            </div>
+
+            <button class="btn" id="pairBtn" onclick="getPairingCode()">Get Pairing Code</button>
+
+            <div class="status" id="status"></div>
+
+            <div class="result-box" id="resultBox">
+                <div class="result-label">Your Pairing Code:</div>
+                <div class="result-code" id="pairingCode"></div>
+            </div>
+
+            <div class="instructions">
+                <h4>📱 How to Pair:</h4>
+                <ol>
+                    <li>Open WhatsApp on your phone</li>
+                    <li>Go to Settings → Linked Devices</li>
+                    <li>Tap "Link a Device"</li>
+                    <li>Enter the code shown above</li>
+                </ol>
+            </div>
+
+            <div class="footer">
+                Powered by <a href="#">ᴍᴀɴɪ ᴍᴅ ☘</a> v3.0.1
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function getPairingCode() {
+            const input = document.getElementById('phoneNumber');
+            const btn = document.getElementById('pairBtn');
+            const status = document.getElementById('status');
+            const resultBox = document.getElementById('resultBox');
+            const pairingCode = document.getElementById('pairingCode');
+
+            const number = input.value.replace(/[^0-9]/g, '');
+
+            if (!number || number.length < 5) {
+                showStatus('Please enter a valid WhatsApp number', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+            resultBox.classList.remove('show');
+            showStatus('Connecting to WhatsApp servers <span class="loading-dots">.</span><span class="loading-dots">.</span><span class="loading-dots">.</span>', 'loading');
+
+            try {
+                const response = await fetch(`/pair?number=${number}`);
+                const data = await response.json();
+
+                if (response.ok && data.code) {
+                    pairingCode.textContent = data.code;
+                    resultBox.classList.add('show');
+                    showStatus('Pairing code generated successfully!', 'success');
+                } else {
+                    showStatus(data.error || 'Failed to generate pairing code', 'error');
+                }
+            } catch (error) {
+                showStatus('Connection failed. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Get Pairing Code';
+            }
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + type;
+            status.innerHTML = message;
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('phoneNumber').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getPairingCode();
+            }
+        });
+    </script>
+</body>
+</html>

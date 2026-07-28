@@ -159,7 +159,7 @@ module.exports = {
 
 🔗 ${videoUrl}
 
-✨ 𝑬𝒏𝒋𝒐𝒚 𝒚𝒐𝒖𝒓 𝒎𝒖𝒔𝒊𝒄 🎧 ;
+✨ 𝐅𝐧𝐣𝐨𝐲 𝐲𝐨𝐮𝐫 𝐦𝐮𝐬𝐢𝐜 🎧`;
 
         // ── Send thumbnail + caption to channel ─────────────────────
         await conn.sendMessage(channelJid, {

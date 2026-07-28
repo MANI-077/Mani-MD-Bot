@@ -5,7 +5,7 @@ const path = require('path');
 
 async function githubCommand(sock, chatId, message) {
   try {
-    const res = await fetchhttps:'http//github.com/MANI-077/Mani-MD-Bot.git');
+    const res = await fetch('https://api.github.com/repos/MANI-077/Mani-MD-Bot');
     if (!res.ok) throw new Error('Error fetching repository data');
     const json = await res.json();
     

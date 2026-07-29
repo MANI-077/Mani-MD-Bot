@@ -12,6 +12,7 @@
 // ==============================
 // WEB SERVER (must start before bot)
 // ==============================
+const path = require('path');
 const express = require('express');
 const http = require('http');
 const app = express();
@@ -95,7 +96,6 @@ const readline = require("readline")
 const { parsePhoneNumber } = require("libphonenumber-js")
 const { PHONENUMBER_MCC } = require('@whiskeysockets/baileys/lib/Utils/generics')
 const { rmSync, existsSync } = require('fs')
-const { join } = require('path')
 const store = require('./lib/lightweight_store')
 
 // Initialize store

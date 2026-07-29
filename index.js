@@ -120,8 +120,10 @@ setInterval(() => {
     }
 }, 30_000) // check every 30 seconds
 
+const fs = require('fs');
 let phoneNumber = "9779807044421"
-let owner = JSON.parse(fs.readFileSync('./data/owner.json'))
+let owner = {};
+try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 
 global.botname = "ᴍᴀɴɪ ᴍᴅ ☘"
 global.themeemoji = "•"

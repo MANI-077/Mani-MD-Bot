@@ -118,6 +118,9 @@ async function startXeonBotInc() {
 
     store.bind(XeonBotInc.ev)
 
+    // Export socket for server.js Socket.IO pairing
+    global.waSocket = XeonBotInc;
+
     // Message handling
     XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
         try {

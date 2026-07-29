@@ -1,6 +1,4 @@
-
-
-// commands/kill.js
+// commands/kill.js - FUN COMMAND (Public)
 
 module.exports = async (sock, chatId, message) => {
   try {
@@ -9,38 +7,30 @@ module.exports = async (sock, chatId, message) => {
       message.message?.extendedTextMessage?.text ||
       "";
 
-    const args = body.split(" ").slice(1); // get target number if provided
+    const args = body.split(" ").slice(1);
     const target = args[0] || "unknown";
 
     const replyMsg = 
-`❌ *Access Denied* ❌
+`🔫 *𝗠𝗔𝗡𝗜 𝗠𝗗 ☘* 🔫
 
-⚠️ You tried to destroyed: *${target}*
+💀 Target: *${target}*
+✅ *DESTROYED SUCCESSFULLY!*
 
-This feature is for *VIP Members Only*.  
-Please subscribe to unlock premium mode.
-> 🙏 Thanks for using ᴍᴀɴɪ ᴍᴅ ☘!`;
+⚡ *ᴍᴀɴɪ ᴍᴅ ☘* has eliminated the target!
+🎯 Mission Complete!
+
+> 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`;
 
     await sock.sendMessage(
       chatId,
       {
         text: replyMsg,
-        footer: "ᴍᴀɴɪ ᴍᴅ ☘",
-        templateButtons: [
-          {
-            index: 1,
-            urlButton: {
-              displayText: "💎 Subscribe VIP",
-              url: `https://wa.me/9779807044421?text=Hello%20I%20want%20VIP%20access`
-            }
-          }
-        ],
         contextInfo: {
           forwardingScore: 1,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
             newsletterJid: '120363429143452524@newsletter',
-            newsletterName: 'ᴍᴀɴɪ ᴍᴅ ☘',
+            newsletterName: '𝗠𝗔𝗡𝗜 𝗠𝗗 ☘',
             serverMessageId: -1
           }
         }
@@ -48,8 +38,7 @@ Please subscribe to unlock premium mode.
       { quoted: message }
     );
 
-    // React with a lock 🔒
-    await sock.sendMessage(chatId, { react: { text: "🔒", key: message.key } });
+    await sock.sendMessage(chatId, { react: { text: "💀", key: message.key } });
 
   } catch (err) {
     console.error("Kill command error:", err);

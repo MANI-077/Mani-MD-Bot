@@ -136,12 +136,14 @@ const { anticallCommand, readState: readAnticallState } = require('./commands/an
 const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/pmblocker');
 const settingsCommand = require('./commands/settings');
 const soraCommand = require('./commands/sora');
+const csongCommand = require('./commands/csong');
+const tempmailCommand = require('./commands/tempmail');
 
 // Global settings
 global.packname = settings.packname;
 global.author = settings.author;
 global.channelLink = "https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L";
-global.ytch = "Lucky Tech Hub";
+global.ytch = "MANI MD";
 
 // Add this near the top of main.js with other global configurations
 const channelInfo = {
@@ -300,7 +302,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.kill', '.crush', '.218', '.cleartmp', '.setpp', '.clearsession', '.blocklist', '.areact', '.autoreact', '.autotyping', '.autorecording', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.blocklist', '.areact', '.autoreact', '.autotyping', '.autorecording', '.autoread', '.pmblocker'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         let isSenderAdmin = false;
@@ -1592,8 +1594,52 @@ case userMessage.startsWith('.cinfo2'):
                 break;
             case userMessage.startsWith('.sora'):
             await sock.sendMessage(chatId, { react: { text: "🌐", key: message.key } });
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 500));
                 await soraCommand(sock, chatId, message);
+                break;
+            case userMessage.startsWith('.csong') || userMessage.startsWith('.channelsong'):
+            await sock.sendMessage(chatId, { react: { text: "🎵", key: message.key } });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                {
+                    const parts = userMessage.split(/\s+/);
+                    const cmdArgs = parts.slice(1);
+                    await csongCommand.execute({
+                        conn: sock,
+                        mek: message,
+                        m: message,
+                        from: chatId,
+                        sender: senderId,
+                        isOwner: message.key.fromMe || senderIsSudo,
+                        isGroup: isGroup,
+                        reply: (text, opts) => sock.sendMessage(chatId, { text, ...channelInfo }, opts),
+                        quoted: message,
+                        q: cmdArgs.slice(1).join(' '),
+                        args: cmdArgs,
+                        body: userMessage,
+                        pushname: senderName || '',
+                        botNumber: sock.user.id.split(':')[0] + '@s.whatsapp.net',
+                        ownerNumber: settings.ownerNumber + '@s.whatsapp.net',
+                        readEnvSync: () => {},
+                        adhiqmini: null,
+                        GQCAP: null,
+                        prefix: settings.prefix,
+                        runtime: (s) => {
+                            const d = Math.floor(s / 86400);
+                            const h = Math.floor((s % 86400) / 3600);
+                            const m = Math.floor((s % 3600) / 60);
+                            const sec = s % 60;
+                            return `${d}d ${h}h ${m}m ${sec}s`;
+                        },
+                        os: process
+                    });
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.tempmail') || userMessage.startsWith('.mail'):
+            await sock.sendMessage(chatId, { react: { text: "📧", key: message.key } });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await tempmailCommand(sock, chatId, message);
+                commandExecuted = true;
                 break;
             default:
                 if (isGroup) {

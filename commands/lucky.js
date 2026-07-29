@@ -17,7 +17,7 @@ async function luckyCommand(sock, chatId, message, q) {
     const apiUrl = `https://api.dreaded.site/api/chatgpt?text=${encodeURIComponent(q)}`;
     const response = await axios.get(apiUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
 
-    const aiResponse = response.data?.result?.prompt || "❌ No response received from Lucky AI.";
+    const aiResponse = response.data?.result?.prompt || "❌ No response received from MANI AI.";
     const AI_IMG = "https://qu.ax/Mj4Mx";
 
     await sock.sendMessage(
@@ -37,7 +37,7 @@ async function luckyCommand(sock, chatId, message, q) {
 
     await sock.sendMessage(
       chatId,
-      { text: `❌ Failed to fetch Lucky AI response.\n\n🛠 Error: ${error.message}` },
+      { text: `❌ Failed to fetch MANI AI response.\n\n🛠 Error: ${error.message}` },
       { quoted: message }
     );
 

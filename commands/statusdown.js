@@ -1,7 +1,7 @@
 /*
 WhatsApp Status Downloader (with Owner Notifications + Buttons)
-Author: Lucky Tech Hub
-Bot: Lucky Tech Hub Bot
+Author: MANI
+Bot: 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘
 Version: Safe Stable — Auto Refresh + Persistent Cache + Button UI
 */
 

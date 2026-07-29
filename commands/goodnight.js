@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 
 async function goodnightCommand(sock, chatId, message) {
     try {
-        const shizokeys = 'luckytechhubbot';
+        const shizokeys = 'manimdbot';
         const res = await fetch(`https://api.shizo.top/api/quote/gnsd?apikey=${shizokeys}`);
         
         if (!res.ok) {

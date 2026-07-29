@@ -244,15 +244,15 @@ async function startXeonBotInc() {
             console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`))
            
             const botname = "ᴍᴀɴɪ ᴍᴅ ☘";
-            const ownername = "ʟᴜᴄᴋʏ ➋➊➑";
+            const ownername = "MANI";
             const repo = "https://github.com/MANI-077/Mani-MD-Bot.git" 
             const prefix = "[.]" 
             const username = "MANI-077";
-            const lucky = `https://github.com/${username}`;
+            const githubLink = `https://github.com/${username}`;
             const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
              await XeonBotInc.sendMessage(botNumber, {
         image: { url: "./assets/bot_image.jpg" },
-        caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ ᴍᴅ ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${lucky}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
+        caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ ᴍᴅ ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${githubLink}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
 
         contextInfo: {
             forwardingScore: 1,

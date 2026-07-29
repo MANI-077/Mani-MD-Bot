@@ -1,7 +1,7 @@
 // ============================================================
 // COMMAND: csong
-// MEZUKA MD V5 - command/csong.js
-// API: https://youtube-scrap-7v51.onrender.com
+// 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘ - command/csong.js
+// Channel Song Forwarder - Downloads & sends songs to a channel
 // ============================================================
 
 module.exports = {
@@ -14,9 +14,6 @@ module.exports = {
         const yts     = require('yt-search');
         const fs      = require('fs');
         const path    = require('path');
-        const ffmpeg  = require('fluent-ffmpeg');
-        const ffmpegPath = require('ffmpeg-static');
-        ffmpeg.setFfmpegPath(ffmpegPath);
 
         // ── Custom API ──────────────────────────────────────────────
         const YT_API = 'https://pacific-plains-35669-22457701905f.herokuapp.com';
@@ -76,19 +73,15 @@ module.exports = {
             return reply(`❌ Download link not found!\n\nDownload link හමු නොවිණි!`);
         }
 
-        await reply(`✅ *Found! Converting & Sending to channel...*\n\nකරුණාකර රැඳෙන්න... 🎵`);
-
-        // ── Temp dir ────────────────────────────────────────────────
-        const unique  = Date.now();
-        const tempDir = path.join(__dirname, 'temp');
-        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-
-        const mp3Path   = path.join(tempDir, `csong_${unique}.mp3`);
-        const introPath = path.join(tempDir, `intro_${unique}.mp3`);
-        const mixPath   = path.join(tempDir, `mix_${unique}.mp3`);
-        const opusPath  = path.join(tempDir, `csong_${unique}.opus`);
+        await reply(`✅ *Found! Sending to channel...*\n\nකරුණාකර රැඳෙන්න... 🎵`);
 
         // ── Download main MP3 ───────────────────────────────────────
+        const tempDir = path.join(__dirname, '..', 'temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+        const unique = Date.now();
+        const mp3Path = path.join(tempDir, `csong_${unique}.mp3`);
+
         const audioResponse = await axios.get(downloadUrl, {
             responseType: 'arraybuffer',
             timeout: 120000,
@@ -97,54 +90,6 @@ module.exports = {
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
         fs.writeFileSync(mp3Path, Buffer.from(audioResponse.data));
-
-        // ── Download "Powered by Mezuka MD" intro (TTS) ─────────────
-        let hasIntro = false;
-        try {
-            const introText = "Powered by Mani md v1";
-            const ttsUrl    = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(introText)}&tl=en&client=tw-ob`;
-            const introResp = await axios.get(ttsUrl, {
-                responseType: 'arraybuffer',
-                timeout: 15000
-            });
-            fs.writeFileSync(introPath, Buffer.from(introResp.data));
-            hasIntro = true;
-        } catch (e) {
-            console.log('[csong] TTS intro skip:', e.message);
-        }
-
-        // ── FFmpeg: prepend intro + convert to opus ─────────────────
-        await new Promise((resolve, reject) => {
-            if (hasIntro) {
-                ffmpeg()
-                    .input(introPath)
-                    .input(mp3Path)
-                    .complexFilter([
-                        '[0:a]volume=2.0[intro]',
-                        '[1:a]volume=1.0[song]',
-                        '[intro][song]concat=n=2:v=0:a=1[out]'
-                    ])
-                    .outputOptions(['-map [out]'])
-                    .audioCodec('libmp3lame')
-                    .format('mp3')
-                    .on('end', resolve)
-                    .on('error', reject)
-                    .save(mixPath);
-            } else {
-                fs.copyFileSync(mp3Path, mixPath);
-                resolve();
-            }
-        });
-
-        await new Promise((resolve, reject) => {
-            ffmpeg(mixPath)
-                .audioBitrate(64)
-                .audioCodec('libopus')
-                .format('opus')
-                .on('end', resolve)
-                .on('error', reject)
-                .save(opusPath);
-        });
 
         // ── Channel message ─────────────────────────────────────────
         const cuteMsg =
@@ -162,22 +107,26 @@ module.exports = {
 ✨ 𝐅𝐧𝐣𝐨𝐲 𝐲𝐨𝐮𝐫 𝐦𝐮𝐬𝐢𝐜 🎧`;
 
         // ── Send thumbnail + caption to channel ─────────────────────
-        await conn.sendMessage(channelJid, {
-            image: { url: thumbnail || require('../image').IBB_LOGO },
-            caption: cuteMsg
-        });
+        if (thumbnail) {
+            await conn.sendMessage(channelJid, {
+                image: { url: thumbnail },
+                caption: cuteMsg
+            });
+        } else {
+            await conn.sendMessage(channelJid, {
+                text: cuteMsg
+            });
+        }
 
-        // ── Send voice note (opus with intro) to channel ────────────
+        // ── Send voice note to channel ──────────────────────────────
         await conn.sendMessage(channelJid, {
-            audio: fs.readFileSync(opusPath),
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
+            audio: fs.readFileSync(mp3Path),
+            mimetype: 'audio/mpeg',
+            ptt: false
         });
 
         // ── Cleanup ─────────────────────────────────────────────────
-        [mp3Path, introPath, mixPath, opusPath].forEach(f => {
-            try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (e) {}
-        });
+        try { if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path); } catch (e) {}
 
         // ── React + confirm ─────────────────────────────────────────
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });

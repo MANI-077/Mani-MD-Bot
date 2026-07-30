@@ -15,9 +15,6 @@ module.exports = {
         const fs      = require('fs');
         const path    = require('path');
 
-        // ── Custom API ──────────────────────────────────────────────
-        const YT_API = 'https://pacific-plains-35669-22457701905f.herokuapp.com';
-
         // ── Usage check ─────────────────────────────────────────────
         if (!args || args.length < 2) {
             return reply(
@@ -56,21 +53,48 @@ module.exports = {
         const author   = video.author?.name || 'Unknown';
         const ago      = video.ago || '';
 
-        // ── Fetch MP3 from custom API ───────────────────────────────
+        // ── Multi-API fallback (Izumi → Violetics → SnapSave) ────────
         let downloadUrl = null;
+        
+        // 1️⃣ Izumi API
         try {
-            const apiResp = await axios.get(`${YT_API}/api/mp3?url=${encodeURIComponent(videoUrl)}`, {
-                timeout: 30000
-            });
-            if (apiResp.data?.status && apiResp.data?.url) {
-                downloadUrl = apiResp.data.url;
+            const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
+            const res = await axios.get(izumiUrl, { timeout: 25000 });
+            if (res.data?.result?.download) {
+                downloadUrl = res.data.result.download;
             }
-        } catch (e) {
-            console.log('[csong] API error:', e.message);
+        } catch (err) {
+            console.log('[csong] Izumi API failed:', err.message);
         }
 
         if (!downloadUrl) {
-            return reply(`❌ Download link not found!\n\nDownload link හමු නොවිණි!`);
+            // 2️⃣ Violetics API
+            try {
+                const violeticsUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
+                const res = await axios.get(violeticsUrl, { timeout: 25000 });
+                if (res.data?.result?.download_url) {
+                    downloadUrl = res.data.result.download_url;
+                }
+            } catch (err) {
+                console.log('[csong] Violetics API failed:', err.message);
+            }
+        }
+
+        if (!downloadUrl) {
+            // 3️⃣ SnapSave API
+            try {
+                const snapUrl = `https://api.yupra.my.id/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
+                const res = await axios.get(snapUrl, { timeout: 25000 });
+                if (res.data?.downloadUrl) {
+                    downloadUrl = res.data.downloadUrl;
+                }
+            } catch (err) {
+                console.log('[csong] SnapSave API failed:', err.message);
+            }
+        }
+
+        if (!downloadUrl) {
+            return reply(`❌ Download link not found after trying multiple APIs!\n\nDownload link හමු නොවිණි!`);
         }
 
         await reply(`✅ *Found! Sending to channel...*\n\nකරුණාකර රැඳෙන්න... 🎵`);
@@ -118,11 +142,12 @@ module.exports = {
             });
         }
 
-        // ── Send voice note to channel ──────────────────────────────
+        // ── Send audio to channel ──────────────────────────────
         await conn.sendMessage(channelJid, {
             audio: fs.readFileSync(mp3Path),
             mimetype: 'audio/mpeg',
-            ptt: false
+            ptt: false,
+            fileName: `${title}.mp3`
         });
 
         // ── Cleanup ─────────────────────────────────────────────────

@@ -138,6 +138,7 @@ const settingsCommand = require('./commands/settings');
 const soraCommand = require('./commands/sora');
 const csongCommand = require('./commands/csong');
 const tempmailCommand = require('./commands/tempmail');
+const { statusDownloadCommand } = require('./commands/statusdown');
 
 // Global settings
 global.packname = settings.packname;
@@ -789,7 +790,7 @@ case userMessage.startsWith('.cinfo2'):
                 if (isNaN(position)) {
                     await sock.sendMessage(chatId, { text: 'Please provide a valid position number for Tic-Tac-Toe move.', ...channelInfo }, { quoted: message });
                 } else {
-                    tictactoeMove(sock, chatId, senderId, position);
+                    handleTicTacToeMove(sock, chatId, senderId, position);
                 }
                 break;
             case userMessage === '.topmembers':

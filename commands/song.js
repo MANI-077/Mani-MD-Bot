@@ -1,28 +1,93 @@
 const yts = require("yt-search");
 const axios = require("axios");
 
+const REPLY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+
 async function songCommand(sock, chatId, message) {
     try {
-        const text =
+        const rawText =
             message.message?.conversation ||
-            message.message?.extendedTextMessage?.text || "";
+            message.message?.extendedTextMessage?.text ||
+            message.message?.imageMessage?.caption ||
+            message.message?.videoMessage?.caption ||
+            "";
 
-        if (!text || text.trim() === ".song") {
+        const quoted =
+            message.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation ||
+            message.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text ||
+            "";
+
+        // Strip prefix and command name (.song, .mp3, .ytmp3)
+        const withoutCmd = rawText.replace(/^\s*[.\/!](?:song|mp3|ytmp3)\b/i, "").trim();
+        const searchQuery = withoutCmd || quoted || "";
+
+        if (!searchQuery) {
             return await sock.sendMessage(chatId, {
-                text: "🎵 Usage: .song <song name>"
+                text: "🎵 *Usage:* `.song <song name or YouTube URL>`\n💡 Example: `.song Faded`"
             }, { quoted: message });
         }
 
+        await sock.sendMessage(chatId, { text: "_🎶 Searching for your song..._" }, { quoted: message });
+
         // 🔎 Search YouTube
-        const search = await yts(text);
-        if (!search.videos.length) {
+        const search = await yts(searchQuery);
+        if (!search.videos || !search.videos.length) {
             return await sock.sendMessage(chatId,
-                { text: "❌ No results found." },
+                { text: "❌ No results found for: " + searchQuery },
                 { quoted: message });
         }
 
         const video = search.videos[0];
         const videoUrl = video.url;
+        let songData = null;
+
+        // --- Multi-API fallback (Izumi → Violetics → SnapSave) ---
+        try {
+            // 1️⃣ Izumi API
+            const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
+            const res = await axios.get(izumiUrl, { timeout: 25000 });
+            if (res.data?.result?.download) {
+                songData = {
+                    title: res.data.result.title,
+                    download: res.data.result.download
+                };
+            }
+        } catch (err) {
+            console.log("Izumi API failed:", err.message);
+        }
+
+        if (!songData) {
+            // 2️⃣ Violetics API
+            try {
+                const violeticsUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
+                const res = await axios.get(violeticsUrl, { timeout: 25000 });
+                if (res.data?.result?.download_url) {
+                    songData = {
+                        title: res.data.result.title,
+                        download: res.data.result.download_url
+                    };
+                }
+            } catch (err) {
+                console.log("Violetics API failed:", err.message);
+            }
+        }
+
+        if (!songData) {
+            // 3️⃣ EliteProTech API (Fallback)
+            try {
+                const api = `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(videoUrl)}&format=mp3`;
+                songData = {
+                    title: video.title,
+                    download: api
+                };
+            } catch (err) {
+                console.log("EliteProTech API failed:", err.message);
+            }
+        }
+
+        if (!songData) {
+            return await sock.sendMessage(chatId, { text: "❌ Failed to get download link. Please try again later." }, { quoted: message });
+        }
 
         const songInfo =
             `╭───『 🎧 *ꜱᴏɴɢ ɪɴꜰᴏ* 』──\n` +
@@ -45,48 +110,59 @@ async function songCommand(sock, chatId, message) {
         }, { quoted: message });
 
         const listener = async ({ messages }) => {
-            const reply = messages[0];
-            const body =
-                reply.message?.conversation ||
-                reply.message?.extendedTextMessage?.text;
+            try {
+                const reply = messages[0];
+                const body =
+                    reply.message?.conversation ||
+                    reply.message?.extendedTextMessage?.text;
 
-            if (!body) return;
+                if (!body) return;
 
-            const isReply =
-                reply.message?.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
+                const isReply =
+                    reply.message?.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
 
-            if (!["1", "2"].includes(body.trim()) || !isReply) return;
+                if (!["1", "2"].includes(body.trim()) || !isReply) return;
 
-            sock.ev.off("messages.upsert", listener);
+                clearTimeout(timeout);
+                sock.ev.off("messages.upsert", listener);
 
-            await sock.sendMessage(chatId,
-                { text: "⏳ Downloading audio..." },
-                { quoted: reply });
+                await sock.sendMessage(chatId,
+                    { text: "⏳ Downloading audio..." },
+                    { quoted: reply });
 
-            // 🔥 Public YouTube MP3 API
-            const api = `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(videoUrl)}&format=mp3`;
+                const fileName = `${video.title.replace(/[<>:"/\\|?*]+/g, '')}.mp3`;
 
-            if (body.trim() === "1") {
-                await sock.sendMessage(chatId, {
-                    audio: { url: api },
-                    mimetype: "audio/mpeg",
-                    fileName: `${video.title}.mp3`
-                }, { quoted: reply });
-            } else {
-                await sock.sendMessage(chatId, {
-                    document: { url: api },
-                    mimetype: "audio/mpeg",
-                    fileName: `${video.title}.mp3`
-                }, { quoted: reply });
+                if (body.trim() === "1") {
+                    await sock.sendMessage(chatId, {
+                        audio: { url: songData.download },
+                        mimetype: "audio/mpeg",
+                        fileName: fileName
+                    }, { quoted: reply });
+                } else {
+                    await sock.sendMessage(chatId, {
+                        document: { url: songData.download },
+                        mimetype: "audio/mpeg",
+                        fileName: fileName
+                    }, { quoted: reply });
+                }
+                
+                // React with success
+                await sock.sendMessage(chatId, { react: { text: '✅', key: reply.key } });
+
+            } catch (err) {
+                console.error("Song reply handler error:", err);
             }
         };
 
         sock.ev.on("messages.upsert", listener);
+        const timeout = setTimeout(() => {
+            sock.ev.off("messages.upsert", listener);
+        }, REPLY_TIMEOUT_MS);
 
     } catch (err) {
         console.error(err);
         await sock.sendMessage(chatId,
-            { text: "❌ Failed to download song." },
+            { text: "❌ An error occurred while processing the song request." },
             { quoted: message });
     }
 }

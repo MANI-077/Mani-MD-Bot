@@ -149,7 +149,7 @@ global.ytch = "MANI MD";
 // Add this near the top of main.js with other global configurations
 const channelInfo = {
     contextInfo: {
-        forwardingScore: 1,
+        forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
             newsletterJid: '120363429143452524@newsletter',
@@ -1583,10 +1583,10 @@ case userMessage.startsWith('.cinfo2'):
                 await soraCommand(sock, chatId, message);
                 break;
             case userMessage.startsWith('.csong') || userMessage.startsWith('.channelsong'):
-            await sock.sendMessage(chatId, { react: { text: "🎵", key: message.key } });
+                await sock.sendMessage(chatId, { react: { text: "🎵", key: message.key } });
                 await new Promise(resolve => setTimeout(resolve, 500));
                 {
-                    const parts = userMessage.split(/\s+/);
+                    const parts = rawText.split(/\s+/);
                     const cmdArgs = parts.slice(1);
                     await csongCommand.execute({
                         conn: sock,
@@ -1600,7 +1600,7 @@ case userMessage.startsWith('.cinfo2'):
                         quoted: message,
                         q: cmdArgs.slice(1).join(' '),
                         args: cmdArgs,
-                        body: userMessage,
+                        body: rawText,
                         pushname: senderName || '',
                         botNumber: sock.user.id.split(':')[0] + '@s.whatsapp.net',
                         ownerNumber: settings.ownerNumber + '@s.whatsapp.net',

@@ -9,59 +9,8 @@
  * - Baileys Library by @adiwajshing
  * - Pair Code implementation inspired by TechGod143 & DGXEON
  */
-// ==============================
-// WEB SERVER (must start before bot)
-// ==============================
 const path = require('path');
-const express = require('express');
-const http = require('http');
-const app = express();
-const PORT = process.env.PORT || 3000;
-const webPath = path.join(__dirname, 'web');
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(webPath));
-app.get('/api/health', (req, res) => res.json({ status: 'online', bot: 'MANI MD', uptime: process.uptime(), memory: (process.memoryUsage().rss/1024/1024).toFixed(2)+' MB' }));
-app.get('/ping', (req, res) => res.send('Bot is alive! ✅'));
-app.get('/status', (req, res) => res.json({ bot: 'MANI MD', version: '3.0.1', status: 'running', uptime: process.uptime() }));
-app.get('/pair-device', (req, res) => res.redirect('/'));
-const server = http.createServer(app);
-const { Server: SocketServer } = require('socket.io');
-const io = new SocketServer(server, { cors: { origin: '*', methods: ['GET','POST'] } });
-let activeSockets = 0, totalUsers = 0, users = new Map();
-io.on('connection', (socket) => {
-  activeSockets++;
-  console.log(`🔌 [SOCKET] Connected: ${socket.id}`);
-  socket.on('set-user', (userId) => { users.set(userId, socket.id); totalUsers++; });
-  socket.on('pair-request', async ({ userId, number }) => {
-    if (!number || number.length < 10) { socket.emit('pair-error','Invalid number'); return; }
-    if (!global.waSocket) { socket.emit('pair-error','Bot not ready. Wait and try again.'); return; }
-    try {
-      const code = await global.waSocket.requestPairingCode(number);
-      const formatted = code.match(/.{1,4}/g).join('-');
-      console.log(`✅ [PAIR] Code for ${number}: ${formatted}`);
-      socket.emit('pairing-code', formatted);
-    } catch(e) { socket.emit('pair-error','Failed to generate code. Try again.'); }
-  });
-  socket.on('disconnect', () => { activeSockets--; });
-});
-setInterval(() => io.emit('stats',{ activeSockets, totalUsers, botConnected: !!global.waSocket }), 5000);
-app.get('/pair', async (req, res) => {
-  const { number } = req.query;
-  if (!number || number.length < 10) return res.status(400).json({ error: 'Invalid number' });
-  if (!global.waSocket) return res.status(503).json({ error: 'Bot not ready' });
-  try {
-    const code = await global.waSocket.requestPairingCode(number);
-    res.json({ code: code.match(/.{1,4}/g).join('-') });
-  } catch(e) { res.status(500).json({ error: 'Failed' }); }
-});
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🌐 [WEB] Running on port ${PORT}`);
-  console.log(`🌐 [WEB] Pair Page: http://localhost:${PORT}/`);
-  console.log(`🌐 [WEB] Health: http://localhost:${PORT}/api/health\n`);
-});
-setInterval(() => { const u=process.uptime(),d=Math.floor(u/86400),h=Math.floor((u%86400)/3600),m=Math.floor((u%3600)/60); console.log(`🔥 [ALIVE] Uptime: ${d}d ${h}h ${m}m | Memory: ${(process.memoryUsage().rss/1024/1024).toFixed(2)}MB | Sockets: ${activeSockets}`); }, 120000);
-setInterval(() => { if (process.memoryUsage().rss/1024/1024 > 900) { console.log('⚠️ [ALIVE] RAM high, restarting...'); process.exit(1); } }, 30000);
+const fs = require('fs');
 // ==============================
 // BOT DEPENDENCIES
 // ==============================
@@ -111,14 +60,7 @@ setInterval(() => {
     }
 }, 60_000) // every 1 minute
 
-// Memory monitoring - Restart if RAM gets too high
-setInterval(() => {
-    const used = process.memoryUsage().rss / 1024 / 1024
-    if (used > 900) {
-        console.log('⚠️ RAM too high (>900MB), restarting bot...')
-        process.exit(1) // Panel will auto-restart
-    }
-}, 30_000) // check every 30 seconds
+
 
 const fs = require('fs');
 let phoneNumber = "9779807044421"
@@ -424,15 +366,23 @@ async function startXeonBotInc() {
             
     }        
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            console.log(chalk.red(`❌ Connection closed: ${statusCode}. Reconnecting: ${shouldReconnect}`));
+            
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                 try {
-                    rmSync('./session', { recursive: true, force: true })
-                } catch { }
-                console.log(chalk.red('Session logged out. Please re-authenticate.'))
-                startXeonBotInc()
+                    rmSync('./session', { recursive: true, force: true });
+                    console.log(chalk.red('⚠️ Session logged out and cleared. Please restart and re-pair.'));
+                } catch (e) {
+                    console.error('Error clearing session:', e);
+                }
+                // Do not auto-restart if logged out to avoid infinite loop without session
+                process.exit(0); 
             } else {
-                startXeonBotInc()
+                // Reconnect for other reasons with a small delay
+                setTimeout(() => startXeonBotInc(), 5000);
             }
         }
     })
@@ -514,10 +464,3 @@ process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err)
 })
 
-let file = require.resolve(__filename)
-fs.watchFile(file, () => {
-    fs.unwatchFile(file)
-    console.log(chalk.redBright(`Update ${__filename}`))
-    delete require.cache[file]
-    require(file)
-})

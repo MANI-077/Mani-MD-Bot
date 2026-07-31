@@ -377,7 +377,8 @@ async function startXeonBotInc() {
                 } catch (e) {
                     console.error('Error clearing session:', e);
                 }
-                // We don't exit here anymore, to keep the web server alive for re-pairing
+                // Clear the global socket so server.js knows to restart it
+                global.waSocket = null;
                 console.log(chalk.yellow('ℹ️ Bot stopped, but web server remains active for pairing.'));
             } else {
                 // Reconnect for other reasons with a small delay

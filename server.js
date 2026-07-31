@@ -92,41 +92,44 @@ io.on('connection', (socket) => {
     }
 
     try {
-      // If socket doesn't exist or is closed, try to restart it
-      if (!global.waSocket || global.waSocket.ws?.readyState === 3) {
-        console.log('🔄 [SOCKET] Restarting bot for pairing...');
-        const index = require('./index');
-        if (typeof index.startXeonBotInc === 'function') {
-          global.waSocket = await index.startXeonBotInc();
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
+      let sock = global.waSocket;
+      
+      // Function to try getting the code
+      const getPairingCode = async (currentSock) => {
+        if (!currentSock) throw new Error('No socket');
+        return await currentSock.requestPairingCode(number);
+      };
 
-      if (global.waSocket) {
-        const sock = global.waSocket;
-        try {
-          const code = await sock.requestPairingCode(number);
-          const formattedCode = code.match(/.{1,4}/g).join('-');
-          
-          console.log(`✅ [SOCKET] Pairing code generated for ${number}: ${formattedCode}`);
-          socket.emit('pairing-code', formattedCode);
-          
-          // Check connection status after a delay
-          setTimeout(() => {
-            if (sock.user) {
-              socket.emit('connection-status', { connected: true });
-            }
-          }, 30000);
-        } catch (pairErr) {
-          console.error(`❌ [SOCKET] Pairing error: ${pairErr.message}`);
-          socket.emit('pair-error', 'Failed to generate pairing code. Please ensure the number is correct and try again.');
-        }
-      } else {
-        socket.emit('pair-error', 'Bot is not connected yet. Please wait for the bot to start and try again.');
+      try {
+        // First attempt
+        if (!sock) throw new Error('No socket');
+        const code = await getPairingCode(sock);
+        const formattedCode = code.match(/.{1,4}/g).join('-');
+        socket.emit('pairing-code', formattedCode);
+      } catch (err) {
+        console.log('🔄 [SOCKET] Socket issue, attempting restart...', err.message);
+        const index = require('./index');
+        sock = await index.startXeonBotInc();
+        global.waSocket = sock;
+        
+        // Wait for socket to initialize
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const code = await getPairingCode(sock);
+        const formattedCode = code.match(/.{1,4}/g).join('-');
+        socket.emit('pairing-code', formattedCode);
       }
+      
+      // Check connection status after a delay
+      setTimeout(() => {
+        if (global.waSocket && global.waSocket.user) {
+          socket.emit('connection-status', { connected: true });
+        }
+      }, 30000);
+
     } catch (error) {
-      console.error(`[SOCKET] Error:`, error);
-      socket.emit('pair-error', 'An unexpected error occurred. Please try again.');
+      console.error(`[SOCKET] Final Error:`, error.message);
+      socket.emit('pair-error', 'Failed to generate pairing code. Please refresh the page and try again.');
     }
   });
 
@@ -156,27 +159,27 @@ app.get('/pair', async (req, res) => {
   }
 
   try {
-    // If socket doesn't exist or is closed, try to restart it
-    if (!global.waSocket || global.waSocket.ws?.readyState === 3) {
-      console.log('🔄 [REST] Restarting bot for pairing...');
+    let sock = global.waSocket;
+    
+    try {
+      if (!sock) throw new Error('No socket');
+      const code = await sock.requestPairingCode(number);
+      const formattedCode = code.match(/.{1,4}/g).join('-');
+      res.json({ code: formattedCode });
+    } catch (err) {
+      console.log('🔄 [REST] Socket issue, attempting restart...', err.message);
       const index = require('./index');
-      if (typeof index.startXeonBotInc === 'function') {
-        global.waSocket = await index.startXeonBotInc();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      sock = await index.startXeonBotInc();
+      global.waSocket = sock;
+      
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const code = await sock.requestPairingCode(number);
+      const formattedCode = code.match(/.{1,4}/g).join('-');
+      res.json({ code: formattedCode });
     }
-
-    if (!global.waSocket) {
-      return res.status(503).json({ error: 'Bot not connected yet. Please wait.' });
-    }
-
-    const sock = global.waSocket;
-    const code = await sock.requestPairingCode(number);
-    const formattedCode = code.match(/.{1,4}/g).join('-');
-    console.log(`📱 [REST] Pairing code for ${number}: ${formattedCode}`);
-    res.json({ code: formattedCode });
   } catch (error) {
-    console.error(`[REST] Pair error:`, error);
+    console.error(`[REST] Final Pair error:`, error.message);
     res.status(500).json({ error: 'Failed to generate pairing code' });
   }
 });

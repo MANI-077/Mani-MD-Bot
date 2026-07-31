@@ -1,0 +1,33 @@
+name: Run Bot on GitHub Actions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *' # Restart every 6 hours to stay within GitHub limits
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_BOT }}
+      SESSION_ID: ${{ secrets.SESSION_ID }}
+      RENDER_EXTERNAL_URL: ${{ secrets.RENDER_EXTERNAL_URL }}
+      PORT: 3000
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Start Bot
+        run: |
+          echo "🚀 Starting Mani-MD-Bot..."
+          # Running with a timeout just in case, though GitHub will kill it anyway
+          timeout 6h npm start || echo "Bot session ended after 6 hours."

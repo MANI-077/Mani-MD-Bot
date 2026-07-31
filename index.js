@@ -377,8 +377,8 @@ async function startXeonBotInc() {
                 } catch (e) {
                     console.error('Error clearing session:', e);
                 }
-                // Do not auto-restart if logged out to avoid infinite loop without session
-                process.exit(0); 
+                // We don't exit here anymore, to keep the web server alive for re-pairing
+                console.log(chalk.yellow('ℹ️ Bot stopped, but web server remains active for pairing.'));
             } else {
                 // Reconnect for other reasons with a small delay
                 setTimeout(() => startXeonBotInc(), 5000);

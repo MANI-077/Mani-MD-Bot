@@ -92,7 +92,16 @@ io.on('connection', (socket) => {
     }
 
     try {
-      // Try to get the WhatsApp bot socket for pairing
+      // If socket doesn't exist or is closed, try to restart it
+      if (!global.waSocket || global.waSocket.ws?.readyState === 3) {
+        console.log('🔄 [SOCKET] Restarting bot for pairing...');
+        const index = require('./index');
+        if (typeof index.startXeonBotInc === 'function') {
+          global.waSocket = await index.startXeonBotInc();
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
       if (global.waSocket) {
         const sock = global.waSocket;
         try {
@@ -110,7 +119,7 @@ io.on('connection', (socket) => {
           }, 30000);
         } catch (pairErr) {
           console.error(`❌ [SOCKET] Pairing error: ${pairErr.message}`);
-          socket.emit('pair-error', 'Failed to generate pairing code. The bot may not be connected yet. Please try again.');
+          socket.emit('pair-error', 'Failed to generate pairing code. Please ensure the number is correct and try again.');
         }
       } else {
         socket.emit('pair-error', 'Bot is not connected yet. Please wait for the bot to start and try again.');
@@ -146,11 +155,21 @@ app.get('/pair', async (req, res) => {
     return res.status(400).json({ error: 'Invalid number' });
   }
 
-  if (!global.waSocket) {
-    return res.status(503).json({ error: 'Bot not connected yet. Please wait.' });
-  }
-
   try {
+    // If socket doesn't exist or is closed, try to restart it
+    if (!global.waSocket || global.waSocket.ws?.readyState === 3) {
+      console.log('🔄 [REST] Restarting bot for pairing...');
+      const index = require('./index');
+      if (typeof index.startXeonBotInc === 'function') {
+        global.waSocket = await index.startXeonBotInc();
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!global.waSocket) {
+      return res.status(503).json({ error: 'Bot not connected yet. Please wait.' });
+    }
+
     const sock = global.waSocket;
     const code = await sock.requestPairingCode(number);
     const formattedCode = code.match(/.{1,4}/g).join('-');

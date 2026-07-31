@@ -62,7 +62,6 @@ setInterval(() => {
 
 
 
-const fs = require('fs');
 let phoneNumber = "9779807044421"
 let owner = {};
 try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
@@ -452,6 +451,11 @@ XeonBotInc.ev.on('call', async (calls) => {
 
 
 // Start the bot with error handling
+// If this file is run directly (node index.js), also start the web server
+if (require.main === module) {
+    require('./server');
+}
+
 startXeonBotInc().catch(error => {
     console.error('Fatal error:', error)
     process.exit(1)

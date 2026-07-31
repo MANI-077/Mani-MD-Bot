@@ -175,6 +175,20 @@ server.listen(PORT, '0.0.0.0', () => {
 // ============================================
 console.log('🔥 [KEEP-ALIVE] Starting uptime monitor...');
 
+// Self-pinging to keep the bot awake on Render/Heroku
+const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || `https://mani-md-bot-fdkz.onrender.com`;
+
+if (EXTERNAL_URL) {
+  console.log(`🚀 [KEEP-ALIVE] Self-pinging enabled for: ${EXTERNAL_URL}`);
+  setInterval(() => {
+    http.get(`${EXTERNAL_URL}/ping`, (res) => {
+      console.log(`📡 [KEEP-ALIVE] Self-ping sent to ${EXTERNAL_URL}/ping | Status: ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.error(`❌ [KEEP-ALIVE] Self-ping failed: ${err.message}`);
+    });
+  }, 10 * 60 * 1000); // Ping every 10 minutes
+}
+
 // Log heartbeat every 2 minutes
 setInterval(() => {
   const uptime = process.uptime();

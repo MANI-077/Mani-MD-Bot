@@ -1,0 +1,15 @@
+name: Bot Keep-Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Runs every 10 minutes
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Bot URL
+        run: |
+          curl -s https://mani-md-bot-fdkz.onrender.com/ping
+          echo "Ping sent at $(date)"

@@ -1,15 +1,26 @@
-name: Bot Keep-Alive
+name: Bot Keep-Alive & Maintenance
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # Runs every 10 minutes
-  workflow_dispatch: # Allows manual triggering
+    - cron: '*/10 * * * *' # Every 10 minutes for keep-alive
+    - cron: '0 0 * * *'    # Once a day at midnight for a fresh restart
+  workflow_dispatch:
 
 jobs:
-  ping:
+  maintenance:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Bot URL
+      - name: Keep-Alive Ping
         run: |
-          curl -s https://mani-md-bot-fdkz.onrender.com/ping
-          echo "Ping sent at $(date)"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://mani-md-bot-fdkz.onrender.com/ping)
+          echo "Ping Status: $RESPONSE"
+          if [ "$RESPONSE" != "200" ]; then
+            echo "⚠️ Bot seems down, triggering emergency restart..."
+            curl -X POST "https://api.render.com/deploy/srv-d9kc8q3tqb8s73b88dvg?key=svdYViZ5-dk"
+          fi
+
+      - name: Daily Fresh Restart
+        if: github.event.schedule == '0 0 * * *'
+        run: |
+          echo "🚀 Performing scheduled daily restart..."
+          curl -X POST "https://api.render.com/deploy/srv-d9kc8q3tqb8s73b88dvg?key=svdYViZ5-dk"

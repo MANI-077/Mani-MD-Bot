@@ -59,6 +59,7 @@ const { parsePhoneNumber } = require("libphonenumber-js")
 const { PHONENUMBER_MCC } = require('@whiskeysockets/baileys/lib/Utils/generics')
 const { rmSync, existsSync } = require('fs')
 const store = require('./lib/lightweight_store')
+const { downloadSession, uploadSession } = require('./lib/sessionSync');
 
 // Initialize store
 store.readFromFile()
@@ -97,6 +98,9 @@ const question = (text) => {
 
 
 async function startXeonBotInc() {
+    // Restore session from GitHub before starting
+    await downloadSession();
+    
     let { version, isLatest } = await fetchLatestBaileysVersion()
     const { state, saveCreds } = await useMultiFileAuthState(`./session`)
     const msgRetryCounterCache = new NodeCache()
@@ -440,7 +444,10 @@ XeonBotInc.ev.on('call', async (calls) => {
 });
 
 
-    XeonBotInc.ev.on('creds.update', saveCreds)
+    XeonBotInc.ev.on('creds.update', async () => {
+        await saveCreds();
+        await uploadSession();
+    })
 
     XeonBotInc.ev.on('group-participants.update', async (update) => {
         await handleGroupParticipantUpdate(XeonBotInc, update);

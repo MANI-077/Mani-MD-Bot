@@ -11,6 +11,19 @@
  */
 const path = require('path');
 const fs = require('fs');
+
+// Set FFmpeg path for Render/Heroku environments
+try {
+    const ffmpeg = require('fluent-ffmpeg');
+    const ffmpegPath = require('ffmpeg-static');
+    if (ffmpegPath) {
+        ffmpeg.setFfmpegPath(ffmpegPath);
+        console.log('✅ [FFMPEG] Static binary path set successfully');
+    }
+} catch (e) {
+    console.log('⚠️ [FFMPEG] Static binary not found, using system ffmpeg');
+}
+
 // ==============================
 // BOT DEPENDENCIES
 // ==============================

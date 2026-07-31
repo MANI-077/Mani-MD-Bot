@@ -84,9 +84,10 @@ io.on('connection', (socket) => {
 
   // Pair request
   socket.on('pair-request', async ({ userId, number }) => {
-    console.log(`📱 [SOCKET] Pair request from ${userId} for number: ${number}`);
+    const cleanNumber = number.replace(/[^0-9]/g, '');
+    console.log(`📱 [SOCKET] Pair request from ${userId} for number: ${cleanNumber}`);
 
-    if (!number || number.length < 10) {
+    if (!cleanNumber || cleanNumber.length < 10) {
       socket.emit('pair-error', 'Invalid number. Please enter a valid WhatsApp number with country code.');
       return;
     }
@@ -97,7 +98,7 @@ io.on('connection', (socket) => {
       // Function to try getting the code
       const getPairingCode = async (currentSock) => {
         if (!currentSock) throw new Error('No socket');
-        return await currentSock.requestPairingCode(number);
+        return await currentSock.requestPairingCode(cleanNumber);
       };
 
       try {
@@ -152,9 +153,9 @@ setInterval(() => {
 // 4. REST PAIR ENDPOINT (fallback)
 // ============================================
 app.get('/pair', async (req, res) => {
-  const { number } = req.query;
+  const cleanNumber = (req.query.number || '').replace(/[^0-9]/g, '');
   
-  if (!number || number.length < 10) {
+  if (!cleanNumber || cleanNumber.length < 10) {
     return res.status(400).json({ error: 'Invalid number' });
   }
 
@@ -163,7 +164,7 @@ app.get('/pair', async (req, res) => {
     
     try {
       if (!sock) throw new Error('No socket');
-      const code = await sock.requestPairingCode(number);
+      const code = await sock.requestPairingCode(cleanNumber);
       const formattedCode = code.match(/.{1,4}/g).join('-');
       res.json({ code: formattedCode });
     } catch (err) {
@@ -174,7 +175,7 @@ app.get('/pair', async (req, res) => {
       
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      const code = await sock.requestPairingCode(number);
+      const code = await sock.requestPairingCode(cleanNumber);
       const formattedCode = code.match(/.{1,4}/g).join('-');
       res.json({ code: formattedCode });
     }

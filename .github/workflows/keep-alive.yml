@@ -12,7 +12,12 @@ jobs:
     steps:
       - name: Keep-Alive Ping
         run: |
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://mani-md-bot-fdkz.onrender.com/ping)
+          URL="${{ secrets.RENDER_EXTERNAL_URL }}"
+          if [ -z "$URL" ]; then
+            echo "❌ RENDER_EXTERNAL_URL secret is not set. Skipping ping."
+            exit 0
+          fi
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/ping")
           echo "Ping Status: $RESPONSE"
           if [ "$RESPONSE" != "200" ]; then
             echo "⚠️ Bot seems down, triggering emergency restart..."

@@ -5,7 +5,7 @@ const yts = require('yt-search');
 const { fetchBuffer } = require('./lib/myfunc');
 const fs = require('fs');
 const fetch = require('node-fetch');
-const ytdl = require('ytdl-core');
+// ytdl-core removed as it was unused and unstable
 const path = require('path');
 const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
@@ -266,25 +266,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         // Then check for command prefix
         if (!userMessage.startsWith('.')) {
-            // Show typing indicator if autotyping is enabled
+            // Show typing/recording indicator if enabled
             await handleAutotypingForMessage(sock, chatId, userMessage);           
-            
-
-            if (isGroup) {
-                // Process non-command messages first
-                await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
-                await Antilink(message, sock);
-                await handleBadwordDetection(sock, chatId, message, userMessage, senderId);
-                await handleTagDetection(sock, chatId, message, senderId);
-            }
-            return;
-        }
-
-         // Then check for command prefix
-        if (!userMessage.startsWith('.')) {
-            // Show recording indicator if autorecording is enabled
             await handleAutorecordingForMessage(sock, chatId, userMessage);           
-            
 
             if (isGroup) {
                 // Process non-command messages first

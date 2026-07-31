@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "server": "node server.js",
-    "start:optimized": "node --max-old-space-size=512 --optimize-for-size --gc-interval=100 server.js",
+    "start:optimized": "node --max-old-space-size=512 --optimize-for-size --expose-gc server.js",
     "cleanup": "node cleanup.js",
     "reset-session": "node reset-session.js",
     "start:clean": "npm run cleanup && npm run start:optimized",
@@ -23,6 +23,7 @@
   "license": "ISC",
   "dependencies": {
     "@adiwajshing/keyed-db": "^0.2.4",
+    "@distube/ytdl-core": "latest",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@hapi/boom": "^10.0.1",
     "@types/node": "^18.0.6",
@@ -46,7 +47,7 @@
     "jsdom": "^22.1.0",
     "libphonenumber-js": "^1.11.18",
     "libsignal": "^2.0.1",
-    "link-preview-js": "^3.0.5",
+    "link-preview-js": "^5.0.0",
     "moment-timezone": "^0.5.43",
     "mumaker": "^2.0.0",
     "node-cache": "^5.1.2",
@@ -64,7 +65,7 @@
     "ruhend-scraper": "^8.3.0",
     "safe-stable-stringify": "^2.5.0",
     "set-cookie": "^0.0.4",
-    "sharp": "^0.32.6",
+    "sharp": "^0.35.3",
     "socket.io": "^4.8.3",
     "tough-cookie": "^5.0.0",
     "translate-google-api": "^1.0.4",
@@ -73,8 +74,7 @@
     "yargs-parser": "^21.1.1",
     "youtube-yts": "^2.0.0",
     "youtubedl-core": "^4.11.7",
-    "yt-search": "^2.12.1",
-    "ytdl-core": "^4.11.5"
+    "yt-search": "^2.12.1"
   },
   "overrides": {
     "jimp": "^1.6.0"

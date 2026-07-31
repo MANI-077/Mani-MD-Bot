@@ -186,7 +186,7 @@ if (EXTERNAL_URL) {
     }).on('error', (err) => {
       console.error(`❌ [KEEP-ALIVE] Self-ping failed: ${err.message}`);
     });
-  }, 10 * 60 * 1000); // Ping every 10 minutes
+  }, 5 * 60 * 1000); // Ping every 5 minutes
 }
 
 // Log heartbeat every 2 minutes

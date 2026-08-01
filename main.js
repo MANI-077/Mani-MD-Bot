@@ -185,6 +185,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const senderId = message.key.participant || message.key.remoteJid;
         const isGroup = chatId.endsWith('@g.us');
         const senderIsSudo = await isSudo(senderId);
+        const senderName = message.pushName || 'User';
 
         const userMessage = (
             message.message?.conversation?.trim() ||
@@ -1607,7 +1608,7 @@ case userMessage.startsWith('.cinfo2'):
                         q: cmdArgs.slice(1).join(' '),
                         args: cmdArgs,
                         body: rawText,
-                        pushname: senderName || '',
+                        pushname: senderName,
                         botNumber: sock.user.id.split(':')[0] + '@s.whatsapp.net',
                         ownerNumber: settings.ownerNumber + '@s.whatsapp.net',
                         readEnvSync: () => {},

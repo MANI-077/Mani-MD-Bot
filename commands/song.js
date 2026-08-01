@@ -1,4 +1,5 @@
 const yts = require("yt-search");
+const { ytmp3 } = require("ruhend-scraper");
 const axios = require("axios");
 
 const REPLY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
@@ -41,23 +42,38 @@ async function songCommand(sock, chatId, message) {
         const videoUrl = video.url;
         let songData = null;
 
-        // --- Multi-API fallback (Izumi → Violetics → SnapSave) ---
+        // --- Multi-API fallback (Ruhend-Scraper → Izumi → Violetics) ---
         try {
-            // 1️⃣ Izumi API
-            const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
-            const res = await axios.get(izumiUrl, { timeout: 25000 });
-            if (res.data?.result?.download) {
+            // 1️⃣ Ruhend-Scraper (Primary)
+            const res = await ytmp3(videoUrl);
+            if (res && res.audio) {
                 songData = {
-                    title: res.data.result.title,
-                    download: res.data.result.download
+                    title: video.title,
+                    download: res.audio
                 };
             }
         } catch (err) {
-            console.log("Izumi API failed:", err.message);
+            console.log("Ruhend-Scraper failed:", err.message);
         }
 
         if (!songData) {
-            // 2️⃣ Violetics API
+            try {
+                // 2️⃣ Izumi API
+                const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
+                const res = await axios.get(izumiUrl, { timeout: 25000 });
+                if (res.data?.result?.download) {
+                    songData = {
+                        title: res.data.result.title,
+                        download: res.data.result.download
+                    };
+                }
+            } catch (err) {
+                console.log("Izumi API failed:", err.message);
+            }
+        }
+
+        if (!songData) {
+            // 3️⃣ Violetics API
             try {
                 const violeticsUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
                 const res = await axios.get(violeticsUrl, { timeout: 25000 });
@@ -69,19 +85,6 @@ async function songCommand(sock, chatId, message) {
                 }
             } catch (err) {
                 console.log("Violetics API failed:", err.message);
-            }
-        }
-
-        if (!songData) {
-            // 3️⃣ EliteProTech API (Fallback)
-            try {
-                const api = `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(videoUrl)}&format=mp3`;
-                songData = {
-                    title: video.title,
-                    download: api
-                };
-            } catch (err) {
-                console.log("EliteProTech API failed:", err.message);
             }
         }
 

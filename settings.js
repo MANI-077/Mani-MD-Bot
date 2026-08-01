@@ -14,6 +14,8 @@ const settings = {
   prefix: ".",
   timezone: "Asia/Kathmandu",
   updateZipUrl: "",
+  githubToken: process.env.GITHUB_TOKEN || "",
+  githubRepo: "https://github.com/MANI-077/Mani-MD-Bot.git"
 };
 
 module.exports = settings;

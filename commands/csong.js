@@ -53,7 +53,7 @@ module.exports = {
         const author   = video.author?.name || 'Unknown';
         const ago      = video.ago || '';
 
-        // ── Multi-API fallback (Izumi → Violetics → SnapSave) ────────
+        // ── Multi-API fallback (Izumi → Violetics → EliteProTech) ────────
         let downloadUrl = null;
         
         // 1️⃣ Izumi API
@@ -81,15 +81,11 @@ module.exports = {
         }
 
         if (!downloadUrl) {
-            // 3️⃣ SnapSave API
+            // 3️⃣ EliteProTech API (Fallback)
             try {
-                const snapUrl = `https://api.yupra.my.id/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
-                const res = await axios.get(snapUrl, { timeout: 25000 });
-                if (res.data?.downloadUrl) {
-                    downloadUrl = res.data.downloadUrl;
-                }
+                downloadUrl = `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(videoUrl)}&format=mp3`;
             } catch (err) {
-                console.log('[csong] SnapSave API failed:', err.message);
+                console.log('[csong] EliteProTech API failed:', err.message);
             }
         }
 

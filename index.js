@@ -466,16 +466,18 @@ XeonBotInc.ev.on('call', async (calls) => {
 }
 
 
-// Start the bot with error handling
+// Export before starting to handle potential circular requirements
+module.exports = { startXeonBotInc };
+
 // If this file is run directly (node index.js), also start the web server
 if (require.main === module) {
     require('./server');
+} else {
+    // If required by server.js, don't auto-start here to let server.js control the boot
+    console.log('🤖 [BOT] index.js loaded by server.js');
 }
 
-startXeonBotInc().catch(error => {
-    console.error('Fatal error:', error)
-    process.exit(1)
-})
+// Global error handlers
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err)
 })
@@ -483,6 +485,3 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err)
 })
-
-
-module.exports = { startXeonBotInc };

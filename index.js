@@ -366,22 +366,27 @@ async function startXeonBotInc() {
     }        
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
+            // Reconnect for almost everything except manual logout
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
             console.log(chalk.red(`❌ Connection closed: ${statusCode}. Reconnecting: ${shouldReconnect}`));
             
-            if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+            if (statusCode === DisconnectReason.loggedOut) {
                 try {
                     rmSync('./session', { recursive: true, force: true });
                     console.log(chalk.red('⚠️ Session logged out and cleared. Please restart and re-pair.'));
                 } catch (e) {
                     console.error('Error clearing session:', e);
                 }
-                // Clear the global socket so server.js knows to restart it
                 global.waSocket = null;
-                console.log(chalk.yellow('ℹ️ Bot stopped, but web server remains active for pairing.'));
+            } else if (statusCode === 401) {
+                console.log(chalk.yellow('⚠️ Unauthorized/Session expired. Attempting to restore from cloud...'));
+                setTimeout(async () => {
+                    await downloadSession();
+                    startXeonBotInc();
+                }, 5000);
             } else {
-                // Reconnect for other reasons with a small delay
+                // Reconnect for other reasons (network, server restart, etc)
                 setTimeout(() => startXeonBotInc(), 5000);
             }
         }
@@ -429,7 +434,14 @@ XeonBotInc.ev.on('call', async (calls) => {
 
     XeonBotInc.ev.on('creds.update', async () => {
         await saveCreds();
-        await uploadSession();
+        // Throttled upload to avoid hitting GitHub API limits too fast
+        if (!global.uploadingSession) {
+            global.uploadingSession = true;
+            setTimeout(async () => {
+                await uploadSession();
+                global.uploadingSession = false;
+            }, 10000);
+        }
     })
 
     XeonBotInc.ev.on('group-participants.update', async (update) => {

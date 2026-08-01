@@ -244,3 +244,10 @@ process.env.PORT = PORT;
 
 const bot = require('./index');
 console.log('🤖 [BOT] WhatsApp Bot module loaded');
+
+// Automatically start the bot on server boot
+bot.startXeonBotInc().then(() => {
+  console.log('🤖 [BOT] WhatsApp Bot started successfully');
+}).catch(err => {
+  console.error('❌ [BOT] Failed to start WhatsApp Bot:', err);
+});

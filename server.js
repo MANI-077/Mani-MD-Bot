@@ -6,6 +6,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const os = require('os');
 
 // ============================================
 // 1. CREATE EXPRESS SERVER
@@ -19,11 +20,22 @@ app.use(express.static(path.join(__dirname, 'web')));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const uptime = process.uptime();
+  const memUsage = process.memoryUsage();
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+  
   res.json({
-    status: 'online',
+    status: global.waSocket && global.waSocket.user ? 'online' : 'offline',
     bot: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
-    uptime: process.uptime(),
-    memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
+    uptime: uptime,
+    memory: (memUsage.rss / 1024 / 1024).toFixed(2) + ' MB',
+    memoryUsagePercent: ((usedMem / totalMem) * 100).toFixed(2),
+    cpuUsage: (os.loadavg()[0] * 100 / os.cpus().length).toFixed(2),
+    totalUsers: totalUsers,
+    activeSockets: activeSockets,
+    botConnected: !!(global.waSocket && global.waSocket.user),
     timestamp: new Date().toISOString()
   });
 });

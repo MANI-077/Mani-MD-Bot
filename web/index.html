@@ -811,24 +811,27 @@
         // Auto-fetch system stats every 3 seconds
         setInterval(async () => {
             try {
+                const start = Date.now();
                 const response = await fetch('/api/health');
                 const data = await response.json();
+                const end = Date.now();
                 
                 uptime.textContent = formatUptime(data.uptime);
                 memory.textContent = data.memory;
-                botStatus.textContent = data.status === 'online' ? '🟢 Online' : '🔴 Offline';
-                statusText.textContent = data.status === 'online' ? 'Online' : 'Offline';
+                botStatus.textContent = data.botConnected ? '🟢 Online' : '🔴 Offline';
+                statusText.textContent = data.botConnected ? 'Online' : 'Offline';
                 
-                // Simulate CPU/RAM usage
-                const cpuPercent = Math.floor(Math.random() * 40) + 10;
-                const ramPercent = Math.floor(Math.random() * 50) + 20;
+                cpuUsage.textContent = data.cpuUsage + '%';
+                ramUsage.textContent = data.memoryUsagePercent + '%';
+                cpuBar.style.width = data.cpuUsage + '%';
+                ramBar.style.width = data.memoryUsagePercent + '%';
                 
-                cpuUsage.textContent = cpuPercent + '%';
-                ramUsage.textContent = ramPercent + '%';
-                cpuBar.style.width = cpuPercent + '%';
-                ramBar.style.width = ramPercent + '%';
+                responseTime.textContent = (end - start) + ' ms';
                 
-                responseTime.textContent = Math.floor(Math.random() * 100) + 10 + ' ms';
+                document.getElementById('session-status').textContent = data.botConnected ? 'Connected' : 'Not Paired';
+                document.getElementById('connection-status').textContent = data.botConnected ? 'Stable' : 'Waiting...';
+                
+                activeUsers.textContent = data.totalUsers;
             } catch (err) {
                 console.log('Health check failed:', err);
             }

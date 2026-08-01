@@ -210,7 +210,7 @@ if (EXTERNAL_URL) {
     }).on('error', (err) => {
       console.error(`❌ [KEEP-ALIVE] Self-ping failed: ${err.message}`);
     });
-  }, 5 * 60 * 1000); // Ping every 5 minutes
+  }, 2 * 60 * 1000); // Ping every 2 minutes for more aggression
 } else {
   console.log('⚠️ [KEEP-ALIVE] RENDER_EXTERNAL_URL not set. Bot might sleep on Render free tier.');
 }

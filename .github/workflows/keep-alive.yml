@@ -2,7 +2,7 @@ name: Bot Keep-Alive & Maintenance
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # Every 10 minutes for keep-alive
+    - cron: '*/5 * * * *'  # Every 5 minutes (Maximum frequency)
     - cron: '0 0 * * *'    # Once a day at midnight for a fresh restart
   workflow_dispatch:
 
@@ -12,16 +12,21 @@ jobs:
     steps:
       - name: Keep-Alive Ping
         run: |
+          # Use secret if available, otherwise try the default URL
           URL="${{ secrets.RENDER_EXTERNAL_URL }}"
           if [ -z "$URL" ]; then
-            echo "❌ RENDER_EXTERNAL_URL secret is not set. Skipping ping."
-            exit 0
+            URL="https://mani-md-bot-fdkz.onrender.com"
           fi
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/ping")
-          echo "Ping Status: $RESPONSE"
+          
+          echo "📡 Pinging: $URL/ping"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL/ping")
+          echo "📥 Response Code: $RESPONSE"
+          
           if [ "$RESPONSE" != "200" ]; then
-            echo "⚠️ Bot seems down, triggering emergency restart..."
+            echo "⚠️ Bot is sleeping or down. Triggering Render Deploy Hook..."
             curl -X POST "https://api.render.com/deploy/srv-d9kc8q3tqb8s73b88dvg?key=svdYViZ5-dk"
+          else
+            echo "✅ Bot is active and responding."
           fi
 
       - name: Daily Fresh Restart

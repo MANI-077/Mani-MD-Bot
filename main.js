@@ -1280,6 +1280,12 @@ case userMessage.startsWith('.cinfo2'):
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await sudoCommand(sock, chatId, message);
                 break;
+            case userMessage === '.monitor' || userMessage === '.uptime':
+            await sock.sendMessage(chatId, { react: { text: "🛡️", key: message.key } });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const monitorCommand = require('./commands/monitor');
+                await monitorCommand(sock, chatId, message);
+                break;
             case userMessage === '.goodnight' || userMessage === '.lovenight' || userMessage === '.gn':
             await sock.sendMessage(chatId, { react: { text: "🌠", key: message.key } });
                 await new Promise(resolve => setTimeout(resolve, 500));

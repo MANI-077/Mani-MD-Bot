@@ -8,18 +8,23 @@ on:
 
 jobs:
   maintenance:
+    strategy:
+      matrix:
+        delay: [0, 60, 120, 180, 240] # Run 5 pings with different delays to stay within 15min window
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for offset
+        run: sleep ${{ matrix.delay }}
+      
       - name: Keep-Alive Ping
         run: |
-          # Use secret if available, otherwise try the default URL
           URL="${{ secrets.RENDER_EXTERNAL_URL }}"
           if [ -z "$URL" ]; then
             URL="https://mani-md-bot-fdkz.onrender.com"
           fi
           
           echo "📡 Pinging: $URL/ping"
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL/ping")
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL/ping")
           echo "📥 Response Code: $RESPONSE"
           
           if [ "$RESPONSE" != "200" ]; then

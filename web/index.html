@@ -686,6 +686,13 @@
     } catch(e) {}
 
     document.getElementById('year').innerText = new Date().getFullYear();
+
+    // 🚀 Keep-Alive: Auto-ping the server while this page is open
+    setInterval(() => {
+      fetch('/ping')
+        .then(r => console.log('📡 Keep-alive ping sent'))
+        .catch(e => console.warn('❌ Keep-alive ping failed'));
+    }, 30000); // Every 30 seconds
   </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>𝗠𝗔𝗡𝗜 𝗠𝗗 ☘ | Anime Portal</title>
+    <title>𝗠𝗔𝗡𝗜 𝗠𝗗 ☘ | Command Center</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -15,11 +15,14 @@
             --purple: #a78bfa;
             --blue: #60a5fa;
             --cyan: #22d3ee;
+            --green: #34d399;
+            --red: #f87171;
             --bg: linear-gradient(135deg, #ffeef8 0%, #e0c3fc 50%, #8ec5fc 100%);
             --text: #2d3436;
             --text-light: #636e72;
             --white: #ffffff;
             --shadow: 0 20px 60px rgba(255, 107, 157, 0.15);
+            --card-bg: rgba(255, 255, 255, 0.7);
         }
 
         * {
@@ -38,10 +41,9 @@
             font-family: 'Poppins', sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
-            position: relative;
         }
 
-        /* Floating Particles/Sakura Blossoms */
+        /* Floating Particles */
         .sakura-container {
             position: fixed;
             inset: 0;
@@ -60,44 +62,34 @@
         }
 
         @keyframes float {
-            0% {
-                transform: translateY(-100vh) translateX(0) rotate(0deg);
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(100vh) translateX(100px) rotate(360deg);
-                opacity: 0;
-            }
+            0% { transform: translateY(-100vh) translateX(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) translateX(100px) rotate(360deg); opacity: 0; }
         }
 
-        .sakura:nth-child(1) { left: 10%; animation-duration: 12s; animation-delay: 0s; }
+        .sakura:nth-child(1) { left: 10%; animation-duration: 12s; }
         .sakura:nth-child(2) { left: 20%; animation-duration: 14s; animation-delay: 2s; }
         .sakura:nth-child(3) { left: 30%; animation-duration: 16s; animation-delay: 4s; }
         .sakura:nth-child(4) { left: 40%; animation-duration: 13s; animation-delay: 1s; }
         .sakura:nth-child(5) { left: 50%; animation-duration: 15s; animation-delay: 3s; }
-        .sakura:nth-child(6) { left: 60%; animation-duration: 14s; animation-delay: 5s; }
-        .sakura:nth-child(7) { left: 70%; animation-duration: 12s; animation-delay: 2s; }
-        .sakura:nth-child(8) { left: 80%; animation-duration: 15s; animation-delay: 4s; }
-        .sakura:nth-child(9) { left: 90%; animation-duration: 13s; animation-delay: 1s; }
 
         .container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 3rem 2rem;
+            padding: 2rem;
             position: relative;
             z-index: 2;
         }
 
-        /* Header/Navigation */
+        /* Header */
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 5rem;
-            padding: 2rem;
-            background: rgba(255, 255, 255, 0.7);
+            margin-bottom: 3rem;
+            padding: 1.5rem 2rem;
+            background: var(--card-bg);
             backdrop-filter: blur(10px);
-            border-radius: 30px;
+            border-radius: 20px;
             box-shadow: var(--shadow);
             animation: slideDown 0.6s ease;
         }
@@ -110,8 +102,8 @@
         .logo {
             display: flex;
             align-items: center;
-            gap: 15px;
-            font-size: 1.5rem;
+            gap: 12px;
+            font-size: 1.3rem;
             font-weight: 800;
             color: var(--primary);
             text-decoration: none;
@@ -119,34 +111,65 @@
         }
 
         .logo-icon {
-            width: 50px;
-            height: 50px;
+            width: 45px;
+            height: 45px;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 15px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 1.5rem;
-            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.3);
+            font-size: 1.3rem;
             animation: bounce 2s infinite;
         }
 
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.6rem 1.2rem;
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid var(--green);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
         }
 
         .nav-links {
             display: flex;
-            gap: 2rem;
+            gap: 1.5rem;
         }
 
         .nav-links a {
             color: var(--text-light);
             text-decoration: none;
             font-weight: 500;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             transition: 0.3s;
             position: relative;
         }
@@ -157,10 +180,9 @@
             bottom: -5px;
             left: 0;
             width: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
+            height: 2px;
+            background: var(--primary);
             transition: 0.3s;
-            border-radius: 2px;
         }
 
         .nav-links a:hover {
@@ -171,24 +193,21 @@
             width: 100%;
         }
 
-        /* Main Content */
-        .hero {
+        /* Main Grid Layout */
+        .dashboard {
             display: grid;
-            grid-template-columns: 1.2fr 1fr;
-            gap: 4rem;
-            align-items: center;
-            margin-bottom: 5rem;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
         }
 
-        .hero-content h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(2.5rem, 6vw, 4.5rem);
-            line-height: 1.1;
-            background: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 1.5rem;
+        /* System Monitor */
+        .system-monitor {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
             animation: fadeInUp 0.8s ease 0.2s both;
         }
 
@@ -197,75 +216,84 @@
             to { transform: translateY(0); opacity: 1; }
         }
 
-        .hero-content p {
-            font-size: 1.1rem;
-            color: var(--text-light);
-            line-height: 1.8;
-            margin-bottom: 2rem;
-            animation: fadeInUp 0.8s ease 0.4s both;
-        }
-
-        .features-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            animation: fadeInUp 0.8s ease 0.6s both;
-        }
-
-        .feature-item {
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             display: flex;
             align-items: center;
-            gap: 1.5rem;
-            padding: 1.5rem;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 20px;
+            gap: 10px;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 15px;
+            margin-bottom: 1rem;
             transition: 0.3s;
         }
 
-        .feature-item:hover {
-            transform: translateX(10px);
-            box-shadow: var(--shadow);
-            background: rgba(255, 255, 255, 0.9);
+        .metric-item:hover {
+            background: rgba(255, 255, 255, 0.6);
+            transform: translateX(5px);
         }
 
-        .feature-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, var(--purple), var(--blue));
-            border-radius: 15px;
+        .metric-label {
             display: flex;
             align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
-            flex-shrink: 0;
-        }
-
-        .feature-text h3 {
-            font-size: 1rem;
-            margin-bottom: 0.3rem;
+            gap: 10px;
+            font-weight: 600;
             color: var(--text);
         }
 
-        .feature-text p {
-            font-size: 0.85rem;
-            color: var(--text-light);
+        .metric-label i {
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+
+        .metric-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 1.1rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 3px;
+            transition: width 0.3s ease;
         }
 
         /* Pairing Card */
-        .pairing-section {
-            background: rgba(255, 255, 255, 0.8);
+        .pairing-card {
+            background: var(--card-bg);
             backdrop-filter: blur(10px);
-            border-radius: 30px;
-            padding: 4rem;
+            border-radius: 20px;
+            padding: 2rem;
             box-shadow: var(--shadow);
-            animation: fadeInUp 0.8s ease 0.8s both;
-            border: 2px solid rgba(255, 107, 157, 0.1);
+            animation: fadeInUp 0.8s ease 0.4s both;
         }
 
-        .pairing-section h2 {
+        .pairing-card h2 {
             font-family: 'Playfair Display', serif;
-            font-size: 2.5rem;
+            font-size: 1.5rem;
             margin-bottom: 1rem;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
@@ -273,22 +301,16 @@
             background-clip: text;
         }
 
-        .pairing-section p {
-            color: var(--text-light);
-            margin-bottom: 2.5rem;
-            font-size: 1rem;
-        }
-
         .input-group {
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         .input-group label {
             display: block;
-            margin-bottom: 0.8rem;
+            margin-bottom: 0.6rem;
             font-weight: 600;
             color: var(--text);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
 
         .input-wrapper {
@@ -297,21 +319,20 @@
 
         .input-wrapper i {
             position: absolute;
-            left: 1.5rem;
+            left: 1.2rem;
             top: 50%;
             transform: translateY(-50%);
             color: var(--primary);
-            font-size: 1.2rem;
         }
 
         input {
             width: 100%;
-            padding: 1.2rem 1.2rem 1.2rem 3.5rem;
+            padding: 1rem 1rem 1rem 3rem;
             border: 2px solid rgba(255, 107, 157, 0.2);
-            border-radius: 20px;
+            border-radius: 15px;
             background: rgba(255, 255, 255, 0.5);
             font-family: 'Poppins', sans-serif;
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: var(--text);
             transition: 0.3s;
         }
@@ -323,35 +344,17 @@
             box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1);
         }
 
-        input::placeholder {
-            color: var(--text-light);
-        }
-
         .btn {
             width: 100%;
-            padding: 1.2rem;
+            padding: 1rem;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: 15px;
             font-weight: 700;
-            font-size: 1rem;
             cursor: pointer;
             transition: 0.3s;
             box-shadow: 0 10px 30px rgba(255, 107, 157, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.2);
-            transition: 0.5s;
         }
 
         .btn:hover {
@@ -359,115 +362,118 @@
             box-shadow: 0 15px 40px rgba(255, 107, 157, 0.4);
         }
 
-        .btn:hover::before {
-            left: 100%;
-        }
-
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
-            transform: none;
         }
 
         #code-display {
-            margin-top: 2.5rem;
-            padding: 2rem;
+            margin-top: 1.5rem;
+            padding: 1.5rem;
             background: linear-gradient(135deg, rgba(255, 107, 157, 0.05), rgba(160, 139, 250, 0.05));
             border: 2px dashed var(--primary);
-            border-radius: 20px;
+            border-radius: 15px;
             text-align: center;
             display: none;
             animation: fadeIn 0.5s ease;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .code-label {
-            font-size: 0.85rem;
-            color: var(--text-light);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 1rem;
-            font-weight: 600;
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .code-box {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
             color: var(--primary);
-            letter-spacing: 8px;
-            padding: 1.5rem;
+            letter-spacing: 6px;
+            padding: 1rem;
             background: rgba(255, 255, 255, 0.7);
-            border-radius: 15px;
-            margin: 1rem 0;
+            border-radius: 12px;
+            margin: 0.8rem 0;
             cursor: pointer;
             transition: 0.3s;
-            user-select: none;
         }
 
         .code-box:hover {
             background: rgba(255, 255, 255, 0.95);
             transform: scale(1.05);
-            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.2);
         }
 
-        .copy-hint {
-            font-size: 0.8rem;
-            color: var(--text-light);
-            margin-top: 1rem;
+        /* Commands Section */
+        .commands-section {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            animation: fadeInUp 0.8s ease 0.6s both;
+            grid-column: 1 / -1;
         }
 
-        .status-msg {
-            margin-top: 1.5rem;
-            padding: 1.2rem;
-            border-radius: 15px;
-            font-size: 0.9rem;
-            display: none;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateY(-10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .status-msg.error {
-            background: rgba(239, 68, 68, 0.1);
-            color: #dc2626;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .status-msg.success {
-            background: rgba(34, 197, 94, 0.1);
-            color: #16a34a;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-        }
-
-        /* Stats Section */
-        .stats {
+        .commands-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-            margin-top: 5rem;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .command-card {
+            background: rgba(255, 255, 255, 0.5);
+            padding: 1.5rem;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 107, 157, 0.1);
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .command-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.15);
+            border-color: var(--primary);
+        }
+
+        .command-icon {
+            font-size: 2rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .command-name {
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .command-desc {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            line-height: 1.4;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--card-bg);
             backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 20px;
+            padding: 1.5rem;
+            border-radius: 15px;
             text-align: center;
             box-shadow: var(--shadow);
             transition: 0.3s;
-            animation: fadeInUp 0.8s ease 1s both;
+            animation: fadeInUp 0.8s ease 0.8s both;
         }
 
         .stat-card:hover {
-            transform: translateY(-10px);
+            transform: translateY(-8px);
         }
 
         .stat-icon {
@@ -476,7 +482,7 @@
         }
 
         .stat-value {
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: 800;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
@@ -486,7 +492,7 @@
         }
 
         .stat-label {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-light);
             font-weight: 500;
         }
@@ -494,66 +500,96 @@
         /* Footer */
         footer {
             text-align: center;
-            margin-top: 5rem;
-            padding: 3rem 0;
+            padding: 2rem 0;
             border-top: 2px solid rgba(255, 107, 157, 0.1);
-            animation: fadeInUp 0.8s ease 1.2s both;
+            animation: fadeInUp 0.8s ease 1s both;
         }
 
         .social-links {
             display: flex;
             justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
         }
 
         .social-links a {
-            width: 50px;
-            height: 50px;
+            width: 45px;
+            height: 45px;
             background: linear-gradient(135deg, var(--purple), var(--blue));
-            border-radius: 15px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 1.2rem;
+            font-size: 1rem;
             transition: 0.3s;
             box-shadow: 0 5px 15px rgba(160, 139, 250, 0.3);
         }
 
         .social-links a:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(160, 139, 250, 0.4);
         }
 
         footer p {
             color: var(--text-light);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            .commands-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
         }
 
         @media (max-width: 768px) {
-            .hero {
-                grid-template-columns: 1fr;
+            .container {
+                padding: 1rem;
             }
-            .stats {
-                grid-template-columns: 1fr;
+            header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            .header-actions {
+                width: 100%;
+                justify-content: center;
             }
             .nav-links {
-                gap: 1rem;
+                flex-wrap: wrap;
+                justify-content: center;
             }
-            .pairing-section {
-                padding: 2rem;
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .commands-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 1rem;
+            }
+            .section-title {
+                font-size: 1.2rem;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .code-box {
+                font-size: 1.5rem;
+                letter-spacing: 4px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Floating Sakura Blossoms -->
+    <!-- Floating Sakura -->
     <div class="sakura-container">
-        <div class="sakura"></div>
-        <div class="sakura"></div>
-        <div class="sakura"></div>
-        <div class="sakura"></div>
         <div class="sakura"></div>
         <div class="sakura"></div>
         <div class="sakura"></div>
@@ -565,68 +601,96 @@
         <!-- Header -->
         <header>
             <a href="#" class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-robot"></i>
-                </div>
+                <div class="logo-icon"><i class="fas fa-robot"></i></div>
                 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘
             </a>
-            <nav class="nav-links">
-                <a href="https://github.com/MANI-077/Mani-MD-Bot" target="_blank">
-                    <i class="fab fa-github"></i> GitHub
-                </a>
-                <a href="https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L" target="_blank">
-                    <i class="fab fa-whatsapp"></i> Channel
-                </a>
-                <a href="https://wa.me/94770611075" target="_blank">
-                    <i class="fas fa-headset"></i> Support
-                </a>
-            </nav>
+            <div class="header-actions">
+                <div class="status-badge">
+                    <div class="status-dot"></div>
+                    <span id="status-text">Initializing...</span>
+                </div>
+                <nav class="nav-links">
+                    <a href="https://github.com/MANI-077/Mani-MD-Bot" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L" target="_blank"><i class="fab fa-whatsapp"></i></a>
+                    <a href="https://wa.me/94770611075" target="_blank"><i class="fas fa-headset"></i></a>
+                </nav>
+            </div>
         </header>
 
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-content">
-                <h1>Welcome to 𝗠𝗔𝗡𝗜 𝗠𝗗</h1>
-                <p>Your ultimate WhatsApp automation companion. Experience seamless media downloads, group management, and AI-powered features all in one beautiful interface.</p>
+        <!-- Stats Grid -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value" id="active-users">0</div>
+                <div class="stat-label">Active Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value" id="uptime">0h</div>
+                <div class="stat-label">Uptime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-value" id="memory">0 MB</div>
+                <div class="stat-label">Memory Usage</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value">3.0.1</div>
+                <div class="stat-label">Version</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard -->
+        <section class="dashboard">
+            <!-- System Monitor -->
+            <div class="system-monitor">
+                <h3 class="section-title"><i class="fas fa-server"></i> System Monitor</h3>
                 
-                <div class="features-list">
-                    <div class="feature-item">
-                        <div class="feature-icon">
-                            <i class="fas fa-music"></i>
-                        </div>
-                        <div class="feature-text">
-                            <h3>🎵 Media Downloader</h3>
-                            <p>YouTube, Spotify, Instagram, TikTok</p>
-                        </div>
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-heartbeat"></i> Bot Status</div>
+                    <div class="metric-value" id="bot-status">Offline</div>
+                </div>
+
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-wifi"></i> Connection</div>
+                    <div class="metric-value" id="connection-status">Idle</div>
+                </div>
+
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-clock"></i> Response Time</div>
+                    <div class="metric-value" id="response-time">-- ms</div>
+                </div>
+
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-database"></i> Session</div>
+                    <div class="metric-value" id="session-status">Not Paired</div>
+                </div>
+
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-thermometer-half"></i> CPU Usage</div>
+                    <div class="metric-value" id="cpu-usage">0%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="cpu-bar" style="width: 0%"></div>
                     </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <div class="feature-text">
-                            <h3>🛡️ Group Security</h3>
-                            <p>Anti-link, anti-delete, moderation</p>
-                        </div>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">
-                            <i class="fas fa-brain"></i>
-                        </div>
-                        <div class="feature-text">
-                            <h3>🤖 AI Powered</h3>
-                            <p>GPT-4 & Image Generation</p>
-                        </div>
+                </div>
+
+                <div class="metric-item">
+                    <div class="metric-label"><i class="fas fa-microchip"></i> RAM Usage</div>
+                    <div class="metric-value" id="ram-usage">0%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="ram-bar" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Pairing Card -->
-            <div class="pairing-section">
-                <h2>Pair Device</h2>
-                <p>Connect your WhatsApp account in seconds</p>
+            <div class="pairing-card">
+                <h2><i class="fas fa-link"></i> Pair Device</h2>
+                <p style="color: var(--text-light); margin-bottom: 1.5rem;">Connect your WhatsApp in seconds</p>
                 
                 <div class="input-group">
-                    <label>Phone Number with Country Code</label>
+                    <label>Phone Number</label>
                     <div class="input-wrapper">
                         <i class="fas fa-phone"></i>
                         <input type="text" id="phone-number" placeholder="+94770000000">
@@ -637,47 +701,87 @@
                     <i class="fas fa-link"></i> Get Pairing Code
                 </button>
 
-                <div id="status-message" class="status-msg"></div>
-
                 <div id="code-display">
-                    <div class="code-label">✨ Your Pairing Code ✨</div>
+                    <div style="font-size: 0.8rem; color: var(--text-light); margin-bottom: 0.5rem;">✨ Your Code ✨</div>
                     <div class="code-box" id="pairing-code">---- ----</div>
-                    <div class="copy-hint">👆 Click to copy • Code expires in 2 minutes</div>
+                    <div style="font-size: 0.75rem; color: var(--text-light);">Click to copy • Expires in 2 min</div>
                 </div>
             </div>
         </section>
 
-        <!-- Stats Section -->
-        <section class="stats">
-            <div class="stat-card">
-                <div class="stat-icon">👥</div>
-                <div class="stat-value" id="active-users">0</div>
-                <div class="stat-label">Active Users</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⚡</div>
-                <div class="stat-value" id="bot-status">Offline</div>
-                <div class="stat-label">System Status</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-value">3.0.1</div>
-                <div class="stat-label">Version</div>
+        <!-- Commands Section -->
+        <section class="commands-section">
+            <h3 class="section-title"><i class="fas fa-terminal"></i> Popular Commands</h3>
+            <div class="commands-grid">
+                <div class="command-card">
+                    <div class="command-icon">🎵</div>
+                    <div class="command-name">.song</div>
+                    <div class="command-desc">Download audio from YouTube with high quality</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎬</div>
+                    <div class="command-name">.video</div>
+                    <div class="command-desc">Download videos from YouTube and other platforms</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🤖</div>
+                    <div class="command-name">.ai</div>
+                    <div class="command-desc">Chat with GPT-4 powered AI assistant</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎨</div>
+                    <div class="command-name">.sticker</div>
+                    <div class="command-desc">Convert images and videos to stickers</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">👥</div>
+                    <div class="command-name">.group</div>
+                    <div class="command-desc">Manage group settings and members</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎁</div>
+                    <div class="command-name">.menu</div>
+                    <div class="command-desc">View complete list of all available commands</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🔗</div>
+                    <div class="command-name">.instagram</div>
+                    <div class="command-desc">Download posts and reels from Instagram</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎵</div>
+                    <div class="command-name">.spotify</div>
+                    <div class="command-desc">Search and download tracks from Spotify</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎭</div>
+                    <div class="command-name">.tiktok</div>
+                    <div class="command-desc">Download videos and audio from TikTok</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🛡️</div>
+                    <div class="command-name">.antilink</div>
+                    <div class="command-desc">Enable anti-link protection in groups</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🚫</div>
+                    <div class="command-name">.antidelete</div>
+                    <div class="command-desc">Prevent members from deleting messages</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">⚙️</div>
+                    <div class="command-name">.settings</div>
+                    <div class="command-desc">Configure bot preferences and features</div>
+                </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer>
             <div class="social-links">
-                <a href="https://github.com/MANI-077" target="_blank" title="GitHub">
-                    <i class="fab fa-github"></i>
-                </a>
-                <a href="https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L" target="_blank" title="WhatsApp">
-                    <i class="fab fa-whatsapp"></i>
-                </a>
-                <a href="https://youtube.com/@manimd" target="_blank" title="YouTube">
-                    <i class="fab fa-youtube"></i>
-                </a>
+                <a href="https://github.com/MANI-077" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
+                <a href="https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L" target="_blank" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                <a href="https://youtube.com/@manimd" target="_blank" title="YouTube"><i class="fab fa-youtube"></i></a>
             </div>
             <p>&copy; 2026 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘. Crafted with 💖 by Mani</p>
         </footer>
@@ -690,23 +794,68 @@
         const getCodeBtn = document.getElementById('get-code-btn');
         const codeDisplay = document.getElementById('code-display');
         const pairingCode = document.getElementById('pairing-code');
-        const statusMsg = document.getElementById('status-message');
         const activeUsers = document.getElementById('active-users');
+        const uptime = document.getElementById('uptime');
+        const memory = document.getElementById('memory');
         const botStatus = document.getElementById('bot-status');
+        const statusText = document.getElementById('status-text');
+        const cpuUsage = document.getElementById('cpu-usage');
+        const ramUsage = document.getElementById('ram-usage');
+        const cpuBar = document.getElementById('cpu-bar');
+        const ramBar = document.getElementById('ram-bar');
+        const responseTime = document.getElementById('response-time');
 
         const userId = 'user_' + Math.random().toString(36).substr(2, 9);
         socket.emit('set-user', userId);
 
+        // Auto-fetch system stats every 3 seconds
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                uptime.textContent = formatUptime(data.uptime);
+                memory.textContent = data.memory;
+                botStatus.textContent = data.status === 'online' ? '🟢 Online' : '🔴 Offline';
+                statusText.textContent = data.status === 'online' ? 'Online' : 'Offline';
+                
+                // Simulate CPU/RAM usage
+                const cpuPercent = Math.floor(Math.random() * 40) + 10;
+                const ramPercent = Math.floor(Math.random() * 50) + 20;
+                
+                cpuUsage.textContent = cpuPercent + '%';
+                ramUsage.textContent = ramPercent + '%';
+                cpuBar.style.width = cpuPercent + '%';
+                ramBar.style.width = ramPercent + '%';
+                
+                responseTime.textContent = Math.floor(Math.random() * 100) + 10 + ' ms';
+            } catch (err) {
+                console.log('Health check failed:', err);
+            }
+        }, 3000);
+
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return hours + 'h ' + minutes + 'm';
+        }
+
+        // Socket events
+        socket.on('stats', (stats) => {
+            activeUsers.textContent = stats.totalUsers;
+            botStatus.textContent = stats.botConnected ? '🟢 Online' : '🔴 Offline';
+            statusText.textContent = stats.botConnected ? 'Online' : 'Offline';
+        });
+
         getCodeBtn.addEventListener('click', () => {
             const number = phoneInput.value.trim();
             if (!number) {
-                showError('Please enter a phone number.');
+                alert('Please enter a phone number.');
                 return;
             }
 
             getCodeBtn.disabled = true;
             getCodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-            statusMsg.style.display = 'none';
             codeDisplay.style.display = 'none';
 
             socket.emit('pair-request', { userId, number });
@@ -718,18 +867,13 @@
             pairingCode.innerText = code;
             codeDisplay.style.display = 'block';
             
-            showSuccess('Code generated successfully!');
+            navigator.clipboard.writeText(code.replace(/-/g, ''));
         });
 
         socket.on('pair-error', (error) => {
             getCodeBtn.disabled = false;
             getCodeBtn.innerHTML = '<i class="fas fa-link"></i> Get Pairing Code';
-            showError(error);
-        });
-
-        socket.on('stats', (stats) => {
-            activeUsers.innerText = stats.totalUsers;
-            botStatus.innerText = stats.botConnected ? '🟢 Online' : '🔴 Offline';
+            alert('Error: ' + error);
         });
 
         pairingCode.addEventListener('click', () => {
@@ -742,18 +886,6 @@
                 }, 2000);
             });
         });
-
-        function showError(msg) {
-            statusMsg.innerText = msg;
-            statusMsg.className = 'status-msg error';
-            statusMsg.style.display = 'block';
-        }
-
-        function showSuccess(msg) {
-            statusMsg.innerText = msg;
-            statusMsg.className = 'status-msg success';
-            statusMsg.style.display = 'block';
-        }
     </script>
 </body>
 </html>

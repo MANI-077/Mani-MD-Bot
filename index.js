@@ -434,13 +434,17 @@ XeonBotInc.ev.on('call', async (calls) => {
 
     XeonBotInc.ev.on('creds.update', async () => {
         await saveCreds();
-        // Throttled upload to avoid hitting GitHub API limits too fast
-        if (!global.uploadingSession) {
+        
+        // Upload immediately if it's the first time, then throttle
+        if (!global.firstUploadDone) {
+            global.firstUploadDone = true;
+            await uploadSession();
+        } else if (!global.uploadingSession) {
             global.uploadingSession = true;
             setTimeout(async () => {
                 await uploadSession();
                 global.uploadingSession = false;
-            }, 10000);
+            }, 30000); // Increased throttle to 30s to be safe
         }
     })
 

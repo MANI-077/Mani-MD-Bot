@@ -40,6 +40,7 @@ async function settingsCommand(sock, chatId, message) {
         const welcomeOn = groupId ? Boolean(userGroupData.welcome && userGroupData.welcome[groupId]) : false;
         const goodbyeOn = groupId ? Boolean(userGroupData.goodbye && userGroupData.goodbye[groupId]) : false;
         const chatbotOn = groupId ? Boolean(userGroupData.chatbot && userGroupData.chatbot[groupId]) : false;
+        const autochatOn = groupId ? Boolean(userGroupData.autoChat && userGroupData.autoChat[groupId]) : false;
         const antitagCfg = groupId ? (userGroupData.antitag && userGroupData.antitag[groupId]) : null;
 
         const lines = [];
@@ -71,6 +72,7 @@ async function settingsCommand(sock, chatId, message) {
             lines.push(`• Welcome: ${welcomeOn ? 'ON' : 'OFF'}`);
             lines.push(`• Goodbye: ${goodbyeOn ? 'ON' : 'OFF'}`);
             lines.push(`• Chatbot: ${chatbotOn ? 'ON' : 'OFF'}`);
+            lines.push(`• Auto-Chat: ${autochatOn ? 'ON' : 'OFF'}`);
             if (antitagCfg && antitagCfg.enabled) {
                 lines.push(`• Antitag: ON (action: ${antitagCfg.action || 'delete'})`);
             } else {

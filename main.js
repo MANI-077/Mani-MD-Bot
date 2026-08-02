@@ -140,6 +140,7 @@ const soraCommand = require('./commands/sora');
 const csongCommand = require('./commands/csong');
 const tempmailCommand = require('./commands/tempmail');
 const { statusDownloadCommand } = require('./commands/statusdown');
+const { autochatCommand, handleAutoChatResponse, isAutoChatEnabled } = require('./commands/autochat');
 
 // Global settings
 global.packname = settings.packname;
@@ -196,9 +197,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
             ''
         ).toLowerCase().replace(/\.\s+/g, '.').trim();
 
-        // Auto-reaction logic
+        // Auto-reaction logic - react to all incoming messages when enabled
         if (isAutoreactEnabled() && !message.key.fromMe && !userMessage.startsWith('.')) {
-            const emojis = ['❤️', '✨', '🔥', '🌸', '⚡', '🎵', '✅', '👑', '🌟'];
+            const emojis = ['❤️', '✨', '🔥', '🌸', '⚡', '🎵', '✅', '👑', '🌟', '💯', '🔥', '🎉', '💪', '🙌', '👏'];
             const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
             await sock.sendMessage(chatId, { react: { text: randomEmoji, key: message.key } });
         }
@@ -280,11 +281,19 @@ async function handleMessages(sock, messageUpdate, printLog) {
             await handleAutorecordingForMessage(sock, chatId, userMessage);           
 
             if (isGroup) {
-                // Process non-command messages first
+                // Process non-command messages
+                // Auto-chat: respond to ALL messages when enabled (without needing mention/reply)
+                await handleAutoChatResponse(sock, chatId, message, userMessage, senderId);
+                // Chatbot: respond only when mentioned/replied to
                 await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
                 await Antilink(message, sock);
                 await handleBadwordDetection(sock, chatId, message, userMessage, senderId);
                 await handleTagDetection(sock, chatId, message, senderId);
+            } else {
+                // Auto-chat in private: respond to all messages when enabled globally
+                await handleAutoChatResponse(sock, chatId, message, userMessage, senderId);
+                // Chatbot in private: respond to mention/reply
+                await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
             }
             return;
         }
@@ -296,7 +305,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.blocklist', '.areact', '.autoreact', '.autotyping', '.autorecording', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.blocklist', '.areact', '.autoreact', '.autotyping', '.autorecording', '.autoread', '.pmblocker', '.autochat'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         let isSenderAdmin = false;
@@ -1076,8 +1085,10 @@ case userMessage.startsWith('.cinfo2'):
                 break;
             case userMessage.startsWith('.autoreact'):
                 await sock.sendMessage(chatId, { react: { text: "🎭", key: message.key } });
+                await new Promise(resolve => setTimeout(resolve, 500));
                 const autoReactArgs = userMessage.split(' ').slice(1);
-                await autoreactCommand(sock, chatId, message, autoReactArgs);
+                const isOwnerOrSudoAR = message.key.fromMe || senderIsSudo;
+                await autoreactCommand(sock, chatId, message, autoReactArgs, isOwnerOrSudoAR);
                 break;
             case userMessage.startsWith('.simp'):
             await sock.sendMessage(chatId, { react: { text: "🤪", key: message.key } });
@@ -1283,9 +1294,9 @@ case userMessage.startsWith('.cinfo2'):
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await handleSsCommand(sock, chatId, message, userMessage.slice(ssCommandLength).trim());
                 break;
-            case userMessage.startsWith('.areact') || userMessage.startsWith('.autoreact') || userMessage.startsWith('.autoreaction'):
+            case userMessage.startsWith('.areact') || userMessage.startsWith('.autoreaction'):
             await sock.sendMessage(chatId, { react: { text: "☣️", key: message.key } });
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 500));
                 const isOwnerOrSudo = message.key.fromMe || senderIsSudo;
                 await handleAreactCommand(sock, chatId, message, isOwnerOrSudo);
                 break;
@@ -1339,8 +1350,16 @@ case userMessage.startsWith('.cinfo2'):
                 break;
             case userMessage.startsWith('.autoread'):
             await sock.sendMessage(chatId, { react: { text: "📄", key: message.key } });
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 500));
                 await autoreadCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.autochat'):
+            await sock.sendMessage(chatId, { react: { text: "💬", key: message.key } });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const autochatMatch = userMessage.slice(10).trim();
+                const isOwnerOrSudoAC = message.key.fromMe || senderIsSudo;
+                await autochatCommand(sock, chatId, message, autochatMatch, isOwnerOrSudoAC);
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.heart'):
@@ -1649,12 +1668,19 @@ case userMessage.startsWith('.cinfo2'):
             default:
                 if (isGroup) {
                     // Handle non-command group messages
-                    if (userMessage) {  // Make sure there's a message
+                    if (userMessage) {
+                        await handleAutoChatResponse(sock, chatId, message, userMessage, senderId);
                         await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
                     }
                     await Antilink(message, sock);
                     await handleBadwordDetection(sock, chatId, message, userMessage, senderId);
                     await handleTagDetection(sock, chatId, message, senderId);
+                } else {
+                    // Private chat auto-chat
+                    if (userMessage) {
+                        await handleAutoChatResponse(sock, chatId, message, userMessage, senderId);
+                        await handleChatbotResponse(sock, chatId, message, userMessage, senderId);
+                    }
                 }
                 commandExecuted = false;
                 break;

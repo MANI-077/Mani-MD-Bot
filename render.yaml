@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: Mani-MD-Bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node --max-old-space-size=512 --optimize-for-size --expose-gc server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /api/health

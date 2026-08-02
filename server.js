@@ -197,6 +197,25 @@ app.get('/pair', async (req, res) => {
   }
 });
 
+// Deploy webhook endpoint (Render auto-deploy trigger)
+app.get('/deploy', async (req, res) => {
+  const token = req.query.key;
+  const expectedToken = 'svdYViZ5-dk';
+  
+  if (token !== expectedToken) {
+    return res.status(403).json({ error: 'Invalid deploy token' });
+  }
+  
+  console.log('🚀 [DEPLOY] Deploy webhook triggered!');
+  res.json({ status: 'deploy-triggered', message: 'Bot is redeploying...' });
+  
+  // Graceful restart
+  setTimeout(() => {
+    console.log('🔄 [DEPLOY] Restarting bot...');
+    process.exit(0);
+  }, 2000);
+});
+
 // Start listening
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🌐 [WEB SERVER] Running on port ${PORT}`);

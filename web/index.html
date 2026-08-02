@@ -773,6 +773,16 @@
                     <div class="command-name">.settings</div>
                     <div class="command-desc">Configure bot preferences and features</div>
                 </div>
+                <div class="command-card">
+                    <div class="command-icon">💬</div>
+                    <div class="command-name">.autochat</div>
+                    <div class="command-desc">Auto-reply to all messages with AI chatbot</div>
+                </div>
+                <div class="command-card">
+                    <div class="command-icon">🎭</div>
+                    <div class="command-name">.autoreact</div>
+                    <div class="command-desc">Auto-react to all incoming messages</div>
+                </div>
             </div>
         </section>
 
@@ -877,6 +887,31 @@
             getCodeBtn.disabled = false;
             getCodeBtn.innerHTML = '<i class="fas fa-link"></i> Get Pairing Code';
             alert('Error: ' + error);
+        });
+
+        // Listen for connection status after pairing
+        socket.on('connection-status', (data) => {
+            if (data.connected) {
+                codeDisplay.style.display = 'block';
+                document.getElementById('session-status').textContent = 'Connected ✅';
+                document.getElementById('connection-status').textContent = 'Stable';
+                botStatus.textContent = '🟢 Online';
+                statusText.textContent = 'Online';
+                
+                // Show success notification
+                const notif = document.createElement('div');
+                notif.style.cssText = 'position:fixed;top:20px;right:20px;background:#00ff88;color:#000;padding:15px 25px;border-radius:10px;font-weight:bold;z-index:9999;animation:fadeIn 0.5s;font-size:16px;box-shadow:0 4px 15px rgba(0,255,136,0.4);';
+                notif.innerHTML = '✅ <strong>Device Paired Successfully!</strong><br>Your bot is now connected.';
+                document.body.appendChild(notif);
+                setTimeout(() => {
+                    notif.style.opacity = '0';
+                    notif.style.transition = 'opacity 0.5s';
+                    setTimeout(() => notif.remove(), 500);
+                }, 5000);
+            } else {
+                document.getElementById('session-status').textContent = 'Disconnected ❌';
+                document.getElementById('connection-status').textContent = 'Disconnected';
+            }
         });
 
         pairingCode.addEventListener('click', () => {

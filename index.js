@@ -61,6 +61,45 @@ const { rmSync, existsSync } = require('fs')
 const store = require('./lib/lightweight_store')
 const { downloadSession, uploadSession } = require('./lib/sessionSync');
 
+// ==============================
+// PAIRING CODE STORE (File-based, survives socket disconnects)
+// ==============================
+const PAIRING_FILE = path.join(__dirname, 'pairing-code.json');
+
+function savePairingCode(code, number) {
+    const data = {
+        code: code,
+        number: number,
+        timestamp: Date.now(),
+        status: 'pending'
+    };
+    fs.writeFileSync(PAIRING_FILE, JSON.stringify(data, null, 2));
+    console.log('💾 [PAIRING] Code saved to file:', code);
+}
+
+function readPairingCode() {
+    try {
+        if (!fs.existsSync(PAIRING_FILE)) return null;
+        const data = JSON.parse(fs.readFileSync(PAIRING_FILE, 'utf8'));
+        // Expire after 3 minutes
+        if (Date.now() - data.timestamp > 180000) {
+            clearPairingCode();
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function clearPairingCode() {
+    try {
+        if (fs.existsSync(PAIRING_FILE)) {
+            fs.unlinkSync(PAIRING_FILE);
+        }
+    } catch (e) {}
+}
+
 // Initialize store
 store.readFromFile()
 const settings = require('./settings')
@@ -82,6 +121,7 @@ try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 
 global.botname = "ᴍᴀɴɪ ᴍᴅ ☘"
 global.themeemoji = "•"
+
 // On server (non-TTY), pairing is handled via web UI - don't auto-request
 const isTTY = process.stdin.isTTY;
 const pairingCode = !!phoneNumber && isTTY || process.argv.includes("--pairing-code")
@@ -101,8 +141,18 @@ const question = (text) => {
     }
 }
 
+// Track if we're currently connecting (prevent double connections)
+let isConnecting = false;
+let reconnectTimer = null;
 
 async function startXeonBotInc() {
+    // Prevent double connections
+    if (isConnecting) {
+        console.log('⚠️ [BOT] Connection already in progress, skipping...');
+        return global.waSocket;
+    }
+    isConnecting = true;
+    
     // Restore session from GitHub before starting
     await downloadSession();
     
@@ -167,7 +217,7 @@ async function startXeonBotInc() {
                             isForwarded: true,
                             forwardedNewsletterMessageInfo: {
                                 newsletterJid: '120363429143452524@newsletter',
-                                newsletterName: 'ᴍᴀɴɪ ᴍᴅ ☘',
+                                newsletterName: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
                                 serverMessageId: -1
                             }
                         }
@@ -229,6 +279,9 @@ async function startXeonBotInc() {
                 code = code?.match(/.{1,4}/g)?.join("-") || code
                 console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
                 
+                // Save pairing code to file (survives socket disconnects)
+                savePairingCode(code, num);
+                
                 // Also broadcast to any connected web clients via global event
                 if (global.ioInstance) {
                     global.ioInstance.emit('pairing-code', code);
@@ -243,7 +296,6 @@ async function startXeonBotInc() {
     // Helper function to request pairing code (used by web UI)
     XeonBotInc.requestWebPairingCode = async (number) => {
         if (pairingCodeRequested) {
-            // Already requested - need to reconnect to get a new code
             throw new Error('PAIRING_ALREADY_REQUESTED');
         }
         let num = number.replace(/[^0-9]/g, '');
@@ -251,20 +303,30 @@ async function startXeonBotInc() {
         pairingCodeRequested = true;
         code = code?.match(/.{1,4}/g)?.join("-") || code;
         console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
+        
+        // Save to file for web UI polling
+        savePairingCode(code, num);
+        
         return code;
+    };
+
+    // Helper: check if bot has a valid WhatsApp connection
+    XeonBotInc.isReady = () => {
+        return !!(XeonBotInc.user && XeonBotInc.user.id);
     };
 
     // Connection handling
     XeonBotInc.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect } = s
         if (connection == "open") {
+            isConnecting = false;
             console.log(chalk.magenta(` `))
             console.log(chalk.yellow(`╭══════════════════════✦═✦═✦═✦═✦═══─❒`))
             console.log(chalk.yellow(`│ 🌿 Engaging Connection to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
 
             console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`))
            
-            const botname = "ᴍᴀɴɪ ᴍᴅ ☘";
+            const botname = "ᴍᴀɴɪ 𝗠𝗗 ☘";
             const ownername = "MANI";
             const repo = "https://github.com/MANI-077/Mani-MD-Bot.git" 
             const prefix = "[.]" 
@@ -273,14 +335,14 @@ async function startXeonBotInc() {
             const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
              await XeonBotInc.sendMessage(botNumber, {
         image: { url: "./assets/bot_image.jpg" },
-        caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ ᴍᴅ ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${githubLink}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
+        caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ 𝗠𝗗 ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${githubLink}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
 
         contextInfo: {
             forwardingScore: 1,
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
                 newsletterJid: '120363429143452524@newsletter',
-                newsletterName: 'ᴍᴀɴɪ ᴍᴅ ☘',
+                newsletterName: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
                 serverMessageId: -1
             }
         }
@@ -295,13 +357,13 @@ async function startXeonBotInc() {
             await delay(500)
             console.log(chalk.green("╰══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))          
             await delay(500)
-            console.log(chalk.yellow(`\n\n  ${chalk.bold.blue(`[ ${global.botname || 'ᴍᴀɴɪ ᴍᴅ ☘'} ]`)}\n\n`))
+            console.log(chalk.yellow(`\n\n  ${chalk.bold.blue(`[ ${global.botname || 'ᴍᴀɴɪ 𝗠𝗗 ☘'} ]`)}\n\n`))
             console.log(chalk.cyan(`< =============================================== >`))
             await delay(500)
-            console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL: ᴍᴀɴɪ ᴍᴅ ☘`))
+            console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL: ᴍᴀɴɪ 𝗠𝗗 ☘`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} GITHUB: MANI-077`))
             console.log(chalk.magenta(`${global.themeemoji || '•'} WA NUMBER: ${owner}`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} CREDIT: ᴍᴀɴɪ ᴍᴅ ☘`))
+            console.log(chalk.magenta(`${global.themeemoji || '•'} CREDIT: ᴍᴀɴɪ 𝗠𝗗 ☘`))
             await delay(500)
             console.log(chalk.red("╭══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))
             await delay(500)
@@ -351,21 +413,19 @@ async function startXeonBotInc() {
           console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
           const metadata = await XeonBotInc.newsletterMetadata("jid", channelJid);
           await new Promise(resolve => setTimeout(resolve, 500));
-          console.log(chalk.cyan(`╭═════════════════════════════════╮`))
-          console.log(chalk.cyan(`│ [ 📡 ] Metadata:`, metadata))
-          console.log(chalk.cyan(`╰═════════════════════════════════╯`));
-          if (metadata.viewer_metadata === null) {
-            await XeonBotInc.newsletterFollow(channelJid);
-            followed.push(channelJid);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            console.log(chalk.green(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
-            console.log(chalk.green(`│ [ ✅ ] Followed newsletter: ${channelJid}`))
-            console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
-          } else {
+          
+          // Check if already following
+          if (metadata.viewer_metadata?.role === "ADMIN" || metadata.viewer_metadata?.role === "OWNER") {
             alreadyFollowing.push(channelJid);
             await new Promise(resolve => setTimeout(resolve, 500));
             console.log(chalk.green(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
             console.log(chalk.green(`│ [ 📌 ] Already following: ${channelJid}`))
+            console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
+          } else {
+            followed.push(channelJid);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log(chalk.green(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
+            console.log(chalk.green(`│ [ ✅ ] Followed: ${channelJid}`))
             console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
           }
         } catch (error) {
@@ -388,13 +448,12 @@ async function startXeonBotInc() {
             
             
             
+            
     }        
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            // Reconnect for almost everything except manual logout
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            console.log(chalk.red(`❌ Connection closed: ${statusCode}. Reconnecting: ${shouldReconnect}`));
+            console.log(chalk.red(`❌ Connection closed: ${statusCode}.`));
             
             if (statusCode === DisconnectReason.loggedOut) {
                 try {
@@ -405,15 +464,24 @@ async function startXeonBotInc() {
                 }
                 global.waSocket = null;
                 pairingCodeRequested = false; // Reset so new pairing can be requested
+                isConnecting = false;
             } else if (statusCode === 401) {
-                console.log(chalk.yellow('⚠️ Unauthorized/Session expired. Attempting to restore from cloud...'));
-                setTimeout(async () => {
-                    await downloadSession();
-                    startXeonBotInc();
-                }, 5000);
+                // 401 means session is invalid - DON'T auto-reconnect endlessly
+                // Just wait for the user to pair via web UI
+                console.log(chalk.yellow('⚠️ Session invalid (401). Waiting for user to pair via web UI...'));
+                global.waSocket = null;
+                pairingCodeRequested = false;
+                isConnecting = false;
+                // Clear session so we're ready for fresh pairing
+                try {
+                    rmSync('./session', { recursive: true, force: true });
+                } catch (e) {}
             } else {
                 // Reconnect for other reasons (network, server restart, etc)
-                setTimeout(() => startXeonBotInc(), 5000);
+                console.log(chalk.yellow('🔄 Reconnecting in 5 seconds...'));
+                isConnecting = false;
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => startXeonBotInc(), 5000);
             }
         }
     })
@@ -497,7 +565,7 @@ XeonBotInc.ev.on('call', async (calls) => {
 
 
 // Export before starting to handle potential circular requirements
-module.exports = { startXeonBotInc };
+module.exports = { startXeonBotInc, savePairingCode, readPairingCode, clearPairingCode, pairingCodeRequested };
 
 // If this file is run directly (node index.js), also start the web server
 if (require.main === module) {
@@ -506,12 +574,3 @@ if (require.main === module) {
     // If required by server.js, don't auto-start here to let server.js control the boot
     console.log('🤖 [BOT] index.js loaded by server.js');
 }
-
-// Global error handlers
-process.on('uncaughtException', (err) => {
-    console.error('Uncaught Exception:', err)
-})
-
-process.on('unhandledRejection', (err) => {
-    console.error('Unhandled Rejection:', err)
-})

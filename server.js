@@ -1,6 +1,12 @@
 /**
  * ᴍᴀɴɪ 𝗠𝗗 ☘ - Combined Server Entry Point
  * WhatsApp Bot + Express Web Server + Socket.IO + Keep-Alive Monitor
+ * 
+ * v3.0.6: Complete rewrite of pairing flow
+ * - Uses file-based pairing code store (survives socket disconnects)
+ * - REST API polling for pairing code (works even if Socket.IO drops)
+ * - Proper 401 handling - no endless reconnect loops
+ * - Dual delivery: Socket.IO + REST polling
  */
 
 const express = require('express');
@@ -49,7 +55,7 @@ app.get('/ping', (req, res) => {
 app.get('/status', (req, res) => {
   res.json({
     bot: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
-    version: '3.0.3',
+    version: '3.0.6',
     status: 'running',
     uptime: process.uptime(),
     memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
@@ -61,6 +67,191 @@ app.get('/status', (req, res) => {
 // Pair device page redirect
 app.get('/pair-device', (req, res) => {
   res.redirect('/');
+});
+
+// ============================================
+// PAIRING CODE REST API (survives socket disconnects)
+// ============================================
+
+// Get current pairing code (for web UI polling)
+app.get('/api/pairing-code', (req, res) => {
+  try {
+    const { readPairingCode } = require('./index');
+    const data = readPairingCode();
+    if (data) {
+      res.json({ code: data.code, number: data.number, timestamp: data.timestamp });
+    } else {
+      res.json({ code: null });
+    }
+  } catch (e) {
+    res.json({ code: null, error: e.message });
+  }
+});
+
+// Request pairing code via REST (more reliable than Socket.IO)
+app.post('/api/pair', async (req, res) => {
+  const { number } = req.body;
+  const cleanNumber = (number || '').replace(/[^0-9]/g, '');
+  
+  if (!cleanNumber || cleanNumber.length < 10) {
+    return res.status(400).json({ error: 'Invalid number. Enter phone with country code.' });
+  }
+
+  // Check if pairing code already exists and is still valid
+  const { readPairingCode } = require('./index');
+  const existing = readPairingCode();
+  if (existing && existing.number === cleanNumber) {
+    return res.json({ code: existing.code, status: 'existing', message: 'Code still valid' });
+  }
+
+  try {
+    let sock = global.waSocket;
+    
+    // Case 1: Bot is connected with registered session - clear and restart for fresh pairing
+    if (sock && sock.authState && sock.authState.creds && sock.authState.creds.registered) {
+      console.log(`🔄 [REST] Existing session detected. Clearing for fresh pairing...`);
+      res.json({ status: 'restarting', message: 'Clearing session and restarting for pairing...' });
+      
+      try {
+        const fs = require('fs');
+        const sessionDir = path.join(__dirname, 'session');
+        if (fs.existsSync(sessionDir)) {
+          const files = fs.readdirSync(sessionDir);
+          for (const file of files) {
+            if (file !== 'creds.json') {
+              fs.unlinkSync(path.join(sessionDir, file));
+            }
+          }
+          fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify({
+            noiseKey: sock.authState.creds.noiseKey,
+            identityKey: sock.authState.creds.identityKey,
+            nextPreKeyId: 1,
+            firstUnuploadedPreKeyId: 1,
+            serverHasPreKeys: false,
+            account: null,
+            registrationId: sock.authState.creds.registrationId,
+            advSecretKey: null,
+            processedHistoryMessages: [],
+            nextPreKeyIdToResend: 0,
+            pairingEphemeralKeyPair: null,
+            registered: false,
+            pairingCode: null,
+            badProtocolRetryCount: 0,
+            me: undefined,
+            accountSettings: {}
+          }));
+        }
+      } catch (clearErr) {
+        console.error(`⚠️ [REST] Could not clear session: ${clearErr.message}`);
+      }
+      
+      // Restart bot with fresh session
+      setTimeout(async () => {
+        try {
+          const { clearPairingCode } = require('./index');
+          clearPairingCode();
+          
+          const bot = require('./index');
+          const newSock = await bot.startXeonBotInc();
+          global.waSocket = newSock;
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          if (typeof newSock.requestWebPairingCode === 'function') {
+            const code = await newSock.requestWebPairingCode(cleanNumber);
+            if (global.ioInstance) global.ioInstance.emit('pairing-code', code);
+            console.log(`✅ [REST] Pairing code generated after restart: ${code}`);
+          }
+        } catch (restartErr) {
+          console.error(`❌ [REST] Restart failed: ${restartErr.message}`);
+        }
+      }, 2000);
+      return;
+    }
+    
+    // Case 2: Socket exists but not registered - request pairing code directly
+    if (sock && typeof sock.requestWebPairingCode === 'function') {
+      try {
+        const code = await sock.requestWebPairingCode(cleanNumber);
+        if (global.ioInstance) global.ioInstance.emit('pairing-code', code);
+        return res.json({ code: code, status: 'success' });
+      } catch (pairErr) {
+        if (pairErr.message === 'PAIRING_ALREADY_REQUESTED') {
+          // Need to restart the connection for a new code
+          console.log('🔄 [REST] Pairing already requested, need fresh connection...');
+          
+          // Clear session and restart
+          const { clearPairingCode } = require('./index');
+          clearPairingCode();
+          
+          try {
+            const fs = require('fs');
+            const sessionDir = path.join(__dirname, 'session');
+            if (fs.existsSync(sessionDir)) {
+              fs.rmSync(sessionDir, { recursive: true, force: true });
+              fs.mkdirSync(sessionDir, { recursive: true });
+            }
+          } catch (e) {}
+          
+          // Remove listeners from old socket
+          if (global.waSocket) {
+            global.waSocket.ev.removeAllListeners();
+          }
+          
+          const bot = require('./index');
+          const newSock = await bot.startXeonBotInc();
+          global.waSocket = newSock;
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          try {
+            const code = await newSock.requestWebPairingCode(cleanNumber);
+            if (global.ioInstance) global.ioInstance.emit('pairing-code', code);
+            return res.json({ code: code, status: 'success' });
+          } catch (e2) {
+            console.error('❌ [REST] Failed after restart:', e2.message);
+            return res.status(500).json({ error: 'Failed to generate pairing code. Please try again.' });
+          }
+        }
+        throw pairErr;
+      }
+    }
+    
+    // Case 3: No socket at all - create a fresh connection and pair
+    console.log('🔄 [REST] No socket available, creating fresh connection...');
+    const { clearPairingCode } = require('./index');
+    clearPairingCode();
+    
+    // Clear session files
+    try {
+      const fs = require('fs');
+      const sessionDir = path.join(__dirname, 'session');
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        fs.mkdirSync(sessionDir, { recursive: true });
+      }
+    } catch (e) {}
+    
+    if (global.waSocket) {
+      global.waSocket.ev.removeAllListeners();
+    }
+    
+    const bot = require('./index');
+    const newSock = await bot.startXeonBotInc();
+    global.waSocket = newSock;
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    try {
+      const code = await newSock.requestWebPairingCode(cleanNumber);
+      if (global.ioInstance) global.ioInstance.emit('pairing-code', code);
+      return res.json({ code: code, status: 'success' });
+    } catch (e) {
+      console.error('❌ [REST] Failed to get pairing code:', e.message);
+      return res.status(500).json({ error: 'Failed to generate pairing code. Please try again.' });
+    }
+    
+  } catch (error) {
+    console.error(`[REST] Pair error:`, error.message);
+    res.status(500).json({ error: 'Failed to generate pairing code: ' + error.message });
+  }
 });
 
 // ============================================
@@ -97,7 +288,7 @@ io.on('connection', (socket) => {
     console.log(`👤 [SOCKET] User registered: ${userId}`);
   });
 
-  // Pair request
+  // Pair request - now delegates to file-based system
   socket.on('pair-request', async ({ userId, number }) => {
     const cleanNumber = number.replace(/[^0-9]/g, '');
     console.log(`📱 [SOCKET] Pair request from ${userId} for number: ${cleanNumber}`);
@@ -107,211 +298,78 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Show loading status
+    socket.emit('pair-status', { message: 'Generating pairing code...', loading: true });
+
     try {
-      let sock = global.waSocket;
+      // Use the REST-like approach: call the pairing logic directly
+      const { readPairingCode, clearPairingCode } = require('./index');
       
-      // Case 1: Bot is already connected with a registered session - clear and restart for fresh pairing
-      if (sock && sock.authState && sock.authState.creds && sock.authState.creds.registered) {
-        console.log(`🔄 [SOCKET] Existing session detected. Clearing for fresh pairing...`);
-        socket.emit('pair-status', { message: 'Clearing existing session...', loading: true });
-        
-        try {
-          const fs = require('fs');
-          const sessionDir = path.join(__dirname, 'session');
-          
-          if (fs.existsSync(sessionDir)) {
-            const files = fs.readdirSync(sessionDir);
-            for (const file of files) {
-              if (file !== 'creds.json') {
-                fs.unlinkSync(path.join(sessionDir, file));
-              }
-            }
-            // Clear creds.json to un-register
-            fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify({
-              noiseKey: sock.authState.creds.noiseKey,
-              identityKey: sock.authState.creds.identityKey,
-              nextPreKeyId: 1,
-              firstUnuploadedPreKeyId: 1,
-              serverHasPreKeys: false,
-              account: null,
-              registrationId: sock.authState.creds.registrationId,
-              advSecretKey: null,
-              processedHistoryMessages: [],
-              nextPreKeyIdToResend: 0,
-              pairingEphemeralKeyPair: null,
-              registered: false,
-              pairingCode: null,
-              badProtocolRetryCount: 0,
-              me: undefined,
-              accountSettings: {}
-            }));
-            console.log(`✅ [SOCKET] Session cleared for fresh pairing`);
-          }
-        } catch (clearErr) {
-          console.error(`⚠️ [SOCKET] Could not clear session: ${clearErr.message}`);
-        }
-        
-        // Wait then restart the bot with fresh session
-        setTimeout(async () => {
-          try {
-            console.log(`🔄 [SOCKET] Restarting bot with fresh session...`);
-            socket.emit('pair-status', { message: 'Restarting bot for fresh pairing...', loading: true });
-            
-            const bot = require('./index');
-            const newSock = await bot.startXeonBotInc();
-            global.waSocket = newSock;
-            
-            // Wait for connection to establish
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            // Now use the helper to request pairing code
-            try {
-              const code = await newSock.requestWebPairingCode(cleanNumber);
-              socket.emit('pairing-code', code);
-              socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-            } catch (pairErr) {
-              // If pairing already requested, we need a full restart
-              console.log('⚠️ [SOCKET] Pairing already requested, restarting connection...');
-              socket.emit('pair-status', { message: 'Refreshing connection for pairing code...', loading: true });
-              
-              // Disconnect and recreate
-              newSock.ev.removeAllListeners();
-              const fs = require('fs');
-              const sessionDir = path.join(__dirname, 'session');
-              if (fs.existsSync(sessionDir)) {
-                fs.rmSync(sessionDir, { recursive: true, force: true });
-                fs.mkdirSync(sessionDir, { recursive: true });
-              }
-              
-              const freshSock = await bot.startXeonBotInc();
-              global.waSocket = freshSock;
-              await new Promise(resolve => setTimeout(resolve, 5000));
-              
-              const code = await freshSock.requestWebPairingCode(cleanNumber);
-              socket.emit('pairing-code', code);
-              socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-            }
-            
-            // Listen for connection success
-            setTimeout(() => {
-              if (global.waSocket && global.waSocket.user) {
-                socket.emit('connection-status', { connected: true });
-                io.emit('stats', {
-                  activeSockets: activeSockets,
-                  totalUsers: totalUsers,
-                  botConnected: true
-                });
-              }
-            }, 30000);
-          } catch (restartErr) {
-            console.error(`❌ [SOCKET] Restart failed: ${restartErr.message}`);
-            socket.emit('pair-error', 'Failed to restart bot. Please try again.');
-            socket.emit('pair-status', { message: 'Error: ' + restartErr.message, loading: false });
-          }
-        }, 2000);
+      // Check if we already have a valid code for this number
+      const existing = readPairingCode();
+      if (existing && existing.number === cleanNumber) {
+        socket.emit('pairing-code', existing.code);
+        socket.emit('pair-status', { message: 'Pairing code ready! Enter it in WhatsApp.', loading: false });
+        console.log(`✅ [SOCKET] Using existing pairing code: ${existing.code}`);
         return;
       }
+
+      let sock = global.waSocket;
       
-      // Case 2: Normal pairing flow (no existing session or session not registered)
-      try {
-        if (!sock) throw new Error('No socket');
-        
-        // Show loading status
-        socket.emit('pair-status', { message: 'Generating pairing code...', loading: true });
-        
-        // Use the helper method if available, otherwise fall back
-        let code;
-        if (typeof sock.requestWebPairingCode === 'function') {
-          code = await sock.requestWebPairingCode(cleanNumber);
-        } else {
-          code = await sock.requestPairingCode(cleanNumber);
-          code = code?.match(/.{1,4}/g)?.join("-") || code;
-        }
-        
-        socket.emit('pairing-code', code);
-        socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-        console.log(`✅ [SOCKET] Pairing code generated: ${code}`);
-        
-      } catch (err) {
-        console.log('🔄 [SOCKET] Socket issue, attempting restart...', err.message);
-        socket.emit('pair-status', { message: 'Refreshing connection for pairing code...', loading: true });
-        
-        // If pairing was already requested, we need a clean restart
-        if (err.message === 'PAIRING_ALREADY_REQUESTED') {
-          // Clear session and restart
-          try {
-            const fs = require('fs');
-            const sessionDir = path.join(__dirname, 'session');
-            if (fs.existsSync(sessionDir)) {
-              fs.rmSync(sessionDir, { recursive: true, force: true });
-              fs.mkdirSync(sessionDir, { recursive: true });
-            }
-          } catch (e) {
-            console.error('⚠️ Could not clear session dir:', e.message);
-          }
-          
-          const bot = require('./index');
-          // Remove all listeners from old socket to prevent conflicts
-          if (global.waSocket) {
-            global.waSocket.ev.removeAllListeners();
-          }
-          
-          const newSock = await bot.startXeonBotInc();
-          global.waSocket = newSock;
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          
-          try {
-            const code = await newSock.requestWebPairingCode(cleanNumber);
-            socket.emit('pairing-code', code);
-            socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-          } catch (pairErr) {
-            console.error('❌ [SOCKET] Pairing code request failed after restart:', pairErr.message);
-            socket.emit('pair-error', 'Failed to generate pairing code. Please try again.');
-          }
-        } else {
-          // Regular restart attempt
-          try {
-            const bot = require('./index');
-            if (global.waSocket) {
-              global.waSocket.ev.removeAllListeners();
-            }
-            sock = await bot.startXeonBotInc();
-            global.waSocket = sock;
-            
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            if (typeof sock.requestWebPairingCode === 'function') {
-              const code = await sock.requestWebPairingCode(cleanNumber);
-              socket.emit('pairing-code', code);
-            } else {
-              const code = await sock.requestPairingCode(cleanNumber);
-              const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
-              socket.emit('pairing-code', formattedCode);
-            }
-            socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-          } catch (restartErr) {
-            console.error('❌ [SOCKET] Restart failed:', restartErr.message);
-            socket.emit('pair-error', 'Failed to restart connection. Please refresh and try again.');
-            socket.emit('pair-status', { message: 'Error: ' + restartErr.message, loading: false });
+      // If socket exists and is ready, try direct pairing
+      if (sock && typeof sock.requestWebPairingCode === 'function') {
+        try {
+          const code = await sock.requestWebPairingCode(cleanNumber);
+          socket.emit('pairing-code', code);
+          socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+          console.log(`✅ [SOCKET] Pairing code generated: ${code}`);
+          return;
+        } catch (pairErr) {
+          if (pairErr.message === 'PAIRING_ALREADY_REQUESTED') {
+            console.log('🔄 [SOCKET] Pairing already used, need fresh connection...');
+          } else {
+            console.log('⚠️ [SOCKET] Direct pairing failed:', pairErr.message);
           }
         }
       }
       
-      // Check connection status after pairing
-      setTimeout(() => {
-        if (global.waSocket && global.waSocket.user) {
-          socket.emit('connection-status', { connected: true });
-          io.emit('stats', {
-            activeSockets: activeSockets,
-            totalUsers: totalUsers,
-            botConnected: true
-          });
+      // Need fresh connection
+      socket.emit('pair-status', { message: 'Preparing fresh connection...', loading: true });
+      
+      // Clear everything
+      clearPairingCode();
+      try {
+        const fs = require('fs');
+        const sessionDir = path.join(__dirname, 'session');
+        if (fs.existsSync(sessionDir)) {
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          fs.mkdirSync(sessionDir, { recursive: true });
         }
-      }, 30000);
-
+      } catch (e) {}
+      
+      if (global.waSocket) {
+        global.waSocket.ev.removeAllListeners();
+      }
+      
+      const bot = require('./index');
+      const newSock = await bot.startXeonBotInc();
+      global.waSocket = newSock;
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      try {
+        const code = await newSock.requestWebPairingCode(cleanNumber);
+        socket.emit('pairing-code', code);
+        socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+        console.log(`✅ [SOCKET] Pairing code generated after restart: ${code}`);
+      } catch (pairErr) {
+        console.error('❌ [SOCKET] Failed to generate code:', pairErr.message);
+        socket.emit('pair-error', 'Failed to generate pairing code. Please try again.');
+        socket.emit('pair-status', { message: 'Error: ' + pairErr.message, loading: false });
+      }
+      
     } catch (error) {
-      console.error(`[SOCKET] Final Error:`, error.message);
-      socket.emit('pair-error', 'Failed to generate pairing code. Please refresh the page and try again.');
+      console.error(`[SOCKET] Error:`, error.message);
+      socket.emit('pair-error', 'Failed to generate pairing code. Please refresh and try again.');
       socket.emit('pair-status', { message: 'Error: ' + error.message, loading: false });
     }
   });
@@ -327,7 +385,7 @@ setInterval(() => {
   io.emit('stats', {
     activeSockets: activeSockets,
     totalUsers: totalUsers,
-    botConnected: !!global.waSocket
+    botConnected: !!(global.waSocket && global.waSocket.user)
   });
 }, 5000);
 
@@ -341,6 +399,15 @@ app.get('/pair', async (req, res) => {
     return res.status(400).json({ error: 'Invalid number' });
   }
 
+  // Check for existing valid code
+  try {
+    const { readPairingCode } = require('./index');
+    const existing = readPairingCode();
+    if (existing && existing.number === cleanNumber) {
+      return res.json({ code: existing.code });
+    }
+  } catch (e) {}
+
   try {
     let sock = global.waSocket;
     
@@ -352,7 +419,6 @@ app.get('/pair', async (req, res) => {
       try {
         const fs = require('fs');
         const sessionDir = path.join(__dirname, 'session');
-        
         if (fs.existsSync(sessionDir)) {
           const files = fs.readdirSync(sessionDir);
           for (const file of files) {
@@ -385,6 +451,8 @@ app.get('/pair', async (req, res) => {
       
       setTimeout(async () => {
         try {
+          const { clearPairingCode } = require('./index');
+          clearPairingCode();
           const bot = require('./index');
           sock = await bot.startXeonBotInc();
           global.waSocket = sock;
@@ -393,12 +461,8 @@ app.get('/pair', async (req, res) => {
           if (typeof sock.requestWebPairingCode === 'function') {
             const code = await sock.requestWebPairingCode(cleanNumber);
             io.emit('pairing-code', code);
-          } else {
-            const code = await sock.requestPairingCode(cleanNumber);
-            const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
-            io.emit('pairing-code', formattedCode);
+            console.log(`✅ [REST] Pairing code generated: ${code}`);
           }
-          console.log(`✅ [REST] Pairing code generated`);
         } catch (restartErr) {
           console.error(`❌ [REST] Restart failed: ${restartErr.message}`);
         }
@@ -419,6 +483,18 @@ app.get('/pair', async (req, res) => {
       }
     } catch (err) {
       console.log('🔄 [REST] Socket issue, attempting restart...', err.message);
+      const { clearPairingCode } = require('./index');
+      clearPairingCode();
+      
+      try {
+        const fs = require('fs');
+        const sessionDir = path.join(__dirname, 'session');
+        if (fs.existsSync(sessionDir)) {
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          fs.mkdirSync(sessionDir, { recursive: true });
+        }
+      } catch (e) {}
+      
       if (global.waSocket) {
         global.waSocket.ev.removeAllListeners();
       }
@@ -467,7 +543,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🌐 [WEB SERVER] Running on port ${PORT}`);
   console.log(`🌐 [WEB SERVER] Pair Device: http://localhost:${PORT}/`);
   console.log(`🌐 [WEB SERVER] Health: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 [WEB SERVER] Socket.IO: http://localhost:${PORT}/socket.io/\n`);
+  console.log(`🌐 [WEB SERVER] Socket.IO: http://localhost:${PORT}/socket.io/`);
+  console.log(`🌐 [WEB SERVER] Pairing API: http://localhost:${PORT}/api/pairing-code\n`);
 });
 
 // ============================================

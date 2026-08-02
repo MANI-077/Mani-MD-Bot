@@ -889,6 +889,18 @@
             alert('Error: ' + error);
         });
 
+        // Show pairing progress/status updates
+        socket.on('pair-status', (data) => {
+            if (data.loading) {
+                getCodeBtn.disabled = true;
+                getCodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + data.message;
+                codeDisplay.style.display = 'none';
+            } else {
+                getCodeBtn.disabled = false;
+                getCodeBtn.innerHTML = '<i class="fas fa-link"></i> Get Pairing Code';
+            }
+        });
+
         // Listen for connection status after pairing
         socket.on('connection-status', (data) => {
             if (data.connected) {

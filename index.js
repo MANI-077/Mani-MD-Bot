@@ -212,9 +212,8 @@ async function startXeonBotInc() {
 
     XeonBotInc.serializeM = (m) => smsg(XeonBotInc, m, store)
 
-    // Handle pairing code - Disabled automatic request on startup to avoid conflicts with Web Interface
-    // The web interface in server.js will handle pairing code requests on demand
-    if (pairingCode && !XeonBotInc.authState.creds.registered && process.stdin.isTTY) {
+    // Handle pairing code - Request pairing if not registered (web or CLI)
+    if (pairingCode && !XeonBotInc.authState.creds.registered) {
         if (useMobile) throw new Error('Cannot use pairing code with mobile api')
 
         setTimeout(async () => {

@@ -1,13 +1,11 @@
 /**
- * ᴍᴀɴɪ ᴍᴅ ☘ - A WhatsApp Bot
+ * ᴍᴀɴɪ 𝗠𝗗 ☘ - A WhatsApp Bot
  * Copyright (c) 2025 MANI
  * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the MIT License.
- * 
- * Credits:
- * - Baileys Library by @adiwajshing
- * - Pair Code implementation inspired by TechGod143 & DGXEON
+ * v3.0.10: Fixed pairing code generation
+ * - Detects stale session on 401 and creates fresh socket for pairing
+ * - Auto-generates pairing code after fresh connection with unregistered creds
+ * - File-based pairing code store for web UI polling
  */
 const path = require('path');
 const fs = require('fs');
@@ -81,8 +79,8 @@ function readPairingCode() {
     try {
         if (!fs.existsSync(PAIRING_FILE)) return null;
         const data = JSON.parse(fs.readFileSync(PAIRING_FILE, 'utf8'));
-        // Expire after 3 minutes
-        if (Date.now() - data.timestamp > 180000) {
+        // Expire after 5 minutes
+        if (Date.now() - data.timestamp > 300000) {
             clearPairingCode();
             return null;
         }
@@ -105,15 +103,13 @@ store.readFromFile()
 const settings = require('./settings')
 setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000)
 
-// Memory optimization - Force garbage collection if available
+// Memory optimization
 setInterval(() => {
     if (global.gc) {
         global.gc()
         console.log('🧹 Garbage collection completed')
     }
-}, 60_000) // every 1 minute
-
-
+}, 60_000)
 
 let phoneNumber = "9779807044421"
 let owner = {};
@@ -122,8 +118,7 @@ try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 global.botname = "ᴍᴀɴɪ ᴍᴅ ☘"
 global.themeemoji = "•"
 
-// Auto-generate pairing code on server (non-TTY) when not registered
-// This ensures the pairing code is ALWAYS available for the web UI
+// On server (non-TTY), always try to pair if not registered
 const isTTY = process.stdin.isTTY;
 const pairingCode = !!phoneNumber && isTTY || process.argv.includes("--pairing-code") || !isTTY;
 const useMobile = process.argv.includes("--mobile")
@@ -131,22 +126,21 @@ const useMobile = process.argv.includes("--mobile")
 // Flag to track if pairing code was already requested
 let pairingCodeRequested = false;
 
-// Only create readline interface if we're in an interactive environment
 const rl = process.stdin.isTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null
 const question = (text) => {
     if (rl) {
         return new Promise((resolve) => rl.question(text, resolve))
     } else {
-        // In non-interactive environment, use ownerNumber from settings
-        return Promise.resolve(settings.ownerNumber || phoneNumber)
+        return Promise.resolve(phoneNumber)
     }
 }
 
-// Track if we're currently connecting (prevent double connections)
+// Track connection state
 let isConnecting = false;
 let reconnectTimer = null;
+let pairingSessionActive = false; // NEW: tracks if we're in pairing mode
 
-async function startXeonBotInc() {
+async function startXeonBotInc(forcePairing = false) {
     // Prevent double connections
     if (isConnecting) {
         console.log('⚠️ [BOT] Connection already in progress, skipping...');
@@ -154,12 +148,23 @@ async function startXeonBotInc() {
     }
     isConnecting = true;
     
-    // Restore session from GitHub before starting
-    await downloadSession();
+    // If forcePairing, clear session first so we get a fresh unregistered state
+    if (forcePairing) {
+        console.log(chalk.cyan('🔄 [BOT] Force pairing mode - clearing stale session...'));
+        try { rmSync('./session', { recursive: true, force: true }); } catch (e) {}
+        clearPairingCode();
+        pairingCodeRequested = false;
+        pairingSessionActive = true;
+    } else {
+        // Restore session from GitHub
+        await downloadSession();
+    }
     
     let { version, isLatest } = await fetchLatestBaileysVersion()
     const { state, saveCreds } = await useMultiFileAuthState(`./session`)
     const msgRetryCounterCache = new NodeCache()
+
+    console.log(chalk.cyan(`📡 [BOT] Creating socket... registered=${state.creds.registered}, forcePairing=${forcePairing}`));
 
     const XeonBotInc = makeWASocket({
         version,
@@ -183,8 +188,6 @@ async function startXeonBotInc() {
     })
 
     store.bind(XeonBotInc.ev)
-
-    // Export socket for server.js Socket.IO pairing
     global.waSocket = XeonBotInc;
 
     // Message handling
@@ -200,7 +203,6 @@ async function startXeonBotInc() {
             if (!XeonBotInc.public && !mek.key.fromMe && chatUpdate.type === 'notify') return
             if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
 
-            // Clear message retry cache to prevent memory bloat
             if (XeonBotInc?.msgRetryCounterCache) {
                 XeonBotInc.msgRetryCounterCache.clear()
             }
@@ -209,7 +211,6 @@ async function startXeonBotInc() {
                 await handleMessages(XeonBotInc, chatUpdate, true)
             } catch (err) {
                 console.error("Error in handleMessages:", err)
-                // Only try to send error message if we have a valid chatId
                 if (mek.key && mek.key.remoteJid) {
                     await XeonBotInc.sendMessage(mek.key.remoteJid, {
                         text: '❌ An error occurred while processing your message.',
@@ -230,7 +231,6 @@ async function startXeonBotInc() {
         }
     })
 
-    // Add these event handlers for better functionality
     XeonBotInc.decodeJid = (jid) => {
         if (!jid) return jid
         if (/:\d+@/gi.test(jid)) {
@@ -265,79 +265,52 @@ async function startXeonBotInc() {
     }
 
     XeonBotInc.public = true
-
     XeonBotInc.serializeM = (m) => smsg(XeonBotInc, m, store)
 
-    // Handle pairing code - Request pairing if not registered (web or CLI)
-    if (pairingCode && !XeonBotInc.authState.creds.registered) {
-        if (useMobile) throw new Error('Cannot use pairing code with mobile api')
-
+    // Auto-request pairing code when not registered
+    if (!XeonBotInc.authState.creds.registered) {
+        console.log(chalk.cyan('🔑 [PAIRING] Credentials not registered - will request pairing code...'));
+        
         setTimeout(async () => {
             try {
                 let num = phoneNumber.replace(/[^0-9]/g, '');
-                // On server, use owner number from settings as fallback
                 if (!num || num.length < 10) {
                     const numFromQ = await question('Enter your WhatsApp number: ');
                     num = (numFromQ || '').replace(/[^0-9]/g, '');
                 }
                 if (!num || num.length < 10) {
-                    console.log(chalk.red('❌ No valid phone number for pairing. Pairing code will be requested later.'));
+                    console.log(chalk.red('❌ No valid phone number for pairing.'));
                     return;
                 }
-                console.log(chalk.cyan('⏳ [PAIRING] Requesting pairing code...'));
+                
+                console.log(chalk.cyan(`⏳ [PAIRING] Requesting code for ${num}...`));
                 let code = await XeonBotInc.requestPairingCode(num);
                 pairingCodeRequested = true;
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
                 console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
                 
-                // Save pairing code to file (survives socket disconnects)
                 savePairingCode(code, num);
                 
-                // Also broadcast to any connected web clients via global event
                 if (global.ioInstance) {
                     global.ioInstance.emit('pairing-code', code);
-                    console.log('✅ [PAIRING] Code broadcast to web UI via Socket.IO');
+                    console.log('✅ [PAIRING] Code broadcast to web UI');
                 }
             } catch (error) {
-                console.error('Error requesting pairing code:', error.message);
-                pairingCodeRequested = false; // Reset so it can be retried
+                console.error('❌ [PAIRING] Error requesting pairing code:', error.message);
+                pairingCodeRequested = false;
             }
-        }, 5000)
+        }, 5000);
     }
 
-    // Helper function to request pairing code (used by web UI)
-    XeonBotInc.requestWebPairingCode = async (number) => {
-        if (pairingCodeRequested) {
-            throw new Error('PAIRING_ALREADY_REQUESTED');
-        }
-        let num = number.replace(/[^0-9]/g, '');
-        let code = await XeonBotInc.requestPairingCode(num);
-        pairingCodeRequested = true;
-        code = code?.match(/.{1,4}/g)?.join("-") || code;
-        console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
-        
-        // Save to file for web UI polling
-        savePairingCode(code, num);
-        
-        return code;
-    };
-
-    // Helper: check if bot has a valid WhatsApp connection
-    XeonBotInc.isReady = () => {
-        return !!(XeonBotInc.user && XeonBotInc.user.id);
-    };
-
-    // Connection handling
+    // Connection handler
     XeonBotInc.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect } = s
         if (connection == "open") {
             isConnecting = false;
-            console.log(chalk.magenta(` `))
-            console.log(chalk.yellow(`╭══════════════════════✦═✦═✦═✦═✦═══─❒`))
-            console.log(chalk.yellow(`│ 🌿 Engaging Connection to => ` + JSON.stringify(XeonBotInc.user, null, 2)))
+            console.log(chalk.yellow(`╭══════════════════════✦═✦═✦═✦═✦═══─❒`));
+            console.log(chalk.yellow(`│ 🌿 Engaging Connection to => ` + JSON.stringify(XeonBotInc.user, null, 2)));
+            console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`));
 
-            console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`))
-           
             const botname = "ᴍᴀɴɪ 𝗠𝗗 ☘";
             const ownername = "MANI";
             const repo = "https://github.com/MANI-077/Mani-MD-Bot.git" 
@@ -345,196 +318,115 @@ async function startXeonBotInc() {
             const username = "MANI-077";
             const githubLink = `https://github.com/${username}`;
             const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
-             await XeonBotInc.sendMessage(botNumber, {
-        image: { url: "./assets/bot_image.jpg" },
-        caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ 𝗠𝗗 ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${githubLink}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
-
-        contextInfo: {
-            forwardingScore: 1,
-            isForwarded: true,
-            forwardedNewsletterMessageInfo: {
-                newsletterJid: '120363429143452524@newsletter',
-                newsletterName: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
-                serverMessageId: -1
+            
+            try {
+                await XeonBotInc.sendMessage(botNumber, {
+                    image: { url: "./assets/bot_image.jpg" },
+                    caption: `╭═✦〔 *ᴄᴏɴɴᴇᴄᴛɪᴏɴ ɴᴏᴛɪᴄᴇ* 〕✦═╮\n\n *ᴍᴀɴɪ 𝗠𝗗 ☘ ᴄᴏɴɴᴇᴄᴛᴇᴅ!* ✅\n\n> _One of the Best Whatsapp Bot._\n\n────────────────\n> 🌟 *ꜱᴛᴀʀ ʀᴇᴘᴏ* : ${repo}\n> 🪄 *ꜰᴏʟʟᴏᴡ ᴜꜱ* : ${githubLink}\n> ⛔ *ʙᴏᴛ ᴘʀᴇꜰɪx* : ${prefix}\n> 📺 *ʏᴏᴜᴛᴜʙᴇ ᴛᴜᴛᴏʀɪᴀʟꜱ* : \n────────────────\n\n> © ${ownername}`,
+                    contextInfo: {
+                        forwardingScore: 1,
+                        isForwarded: true,
+                        forwardedNewsletterMessageInfo: {
+                            newsletterJid: '120363429143452524@newsletter',
+                            newsletterName: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
+                            serverMessageId: -1
+                        }
+                    }
+                });
+            } catch (e) {
+                console.log('⚠️ Could not send connection notice:', e.message);
             }
-        }
-    });
 
             await delay(500)
-            console.log(chalk.red("╭══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))
-            await delay(500)
-            console.log(chalk.yellow("│ [ ✉️ ] Sending connection notice with image..."));
-            await delay(500)
-            console.log(chalk.green("│ [ 📩 ] Connection notice sent successfully with image"))
-            await delay(500)
-            console.log(chalk.green("╰══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))          
-            await delay(500)
-            console.log(chalk.yellow(`\n\n  ${chalk.bold.blue(`[ ${global.botname || 'ᴍᴀɴɪ 𝗠𝗗 ☘'} ]`)}\n\n`))
-            console.log(chalk.cyan(`< =============================================== >`))
-            await delay(500)
-            console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL: ᴍᴀɴɪ 𝗠𝗗 ☘`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} GITHUB: MANI-077`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} WA NUMBER: ${owner}`))
-            console.log(chalk.magenta(`${global.themeemoji || '•'} CREDIT: ᴍᴀɴɪ 𝗠𝗗 ☘`))
-            await delay(500)
-            console.log(chalk.red("╭══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))
-            await delay(500)
-            console.log(chalk.yellow("│ [ ⏳ ] Downloading creds data..."))
-            await delay(500)
-            console.log(chalk.cyan("│ [ 🆔️ ] Downloading MEGA.nz session..."))
-            await delay(500)
-            console.log(chalk.green("│ [ ✅ ] Creds data downloaded successfully"))
-            await delay(500)
-            console.log(chalk.green("│ [ ✅ ] MEGA session downloaded successfully"))
-            await delay(500)
-            console.log(chalk.cyan("│ [ 🟠 ] Connecting to WhatsApp ⏳️..."))
-            await delay(500)
-            console.log(chalk.yellow("│ [ 🧩 ] Installing commands..."))      
-            await delay(500)
-            console.log(chalk.green("│ [ ✅ ] Commands installed successfully"))     
-            await delay(500)      
-            console.log(chalk.green(`│ [ 🪩 ] L T H Bot Connected Successfully`))
-            await delay(500)
-            console.log(chalk.green("╰══✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦═✦══─❒"))
-            await delay(500)
-            console.log(chalk.magenta(` `))
-            await delay(500)
-            console.log(chalk.yellow("╭═✦✦═══════════════════✦✦═╮"))     
-            console.log(chalk.green(`│  Bot Version: ${settings.version}`))
-            console.log(chalk.yellow("╰═✦✦═══════════════════✦✦═╯"))  
-            await delay(500)
-            console.log(chalk.magenta(` `))
-            console.log(chalk.cyan(`★★★★★═════════†════════★★★★★★`))
-            console.log(chalk.magenta(` `))
-            await delay(500)
-            
-                  
-           // Follow newsletters
-      const newsletterChannels = [
-        "120363429143452524@newsletter",
-      ];
-      let followed = [];
-      let alreadyFollowing = [];
-      let failed = [];
+            console.log(chalk.green(`│ [ 🪩 ] Bot Connected Successfully`))
+            console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`))
 
-      for (const channelJid of newsletterChannels) {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          console.log(chalk.yellow(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
-          console.log(chalk.yellow(`│ [ 📡 ] Checking metadata for ${channelJid}`))
-          console.log(chalk.yellow(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
-          const metadata = await XeonBotInc.newsletterMetadata("jid", channelJid);
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Check if already following
-          if (metadata.viewer_metadata?.role === "ADMIN" || metadata.viewer_metadata?.role === "OWNER") {
-            alreadyFollowing.push(channelJid);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            console.log(chalk.green(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
-            console.log(chalk.green(`│ [ 📌 ] Already following: ${channelJid}`))
-            console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
-          } else {
-            followed.push(channelJid);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            console.log(chalk.green(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
-            console.log(chalk.green(`│ [ ✅ ] Followed: ${channelJid}`))
-            console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
-          }
-        } catch (error) {
-          failed.push(channelJid);
-          await new Promise(resolve => setTimeout(resolve, 500));
-          console.error(chalk.red(`╭══════════════════════✦═✦═✦═✦═✦════─❒`))
-          console.error(chalk.red(`│ [ ❌ ] Failed to follow ${channelJid}: ${error.message}`))
-          console.error(chalk.red(`╰══════════════════════✦═✦═✦═✦═✦════─❒`));
-          
-        }
-      } 
-      await new Promise(resolve => setTimeout(resolve, 500));
-            console.log(
-        chalk.cyan(
-          `╭══════════════════════✦═✦═✦═✦═✦═╮\n│ 📡 Newsletter Follow Status:\n│ ✅ Followed: ${followed.length}\n│ 📌 Already following: ${alreadyFollowing.length}\n│ ❌ Failed: ${failed.length}\n╰══════════════════════✦═✦═✦═✦═✦═╯`
-        )
-      );
+            // Follow newsletters
+            const newsletterChannels = ["120363429143452524@newsletter"];
+            let followed = [];
+            let alreadyFollowing = [];
+            let failed = [];
+
+            for (const channelJid of newsletterChannels) {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const metadata = await XeonBotInc.newsletterMetadata("jid", channelJid);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    if (metadata.viewer_metadata?.role === "ADMIN" || metadata.viewer_metadata?.role === "OWNER") {
+                        alreadyFollowing.push(channelJid);
+                    } else {
+                        followed.push(channelJid);
+                    }
+                } catch (error) {
+                    failed.push(channelJid);
+                }
+            } 
             
-            
-            
-            
-            
-            
-    }        
+            pairingSessionActive = false;
+        }        
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            
             console.log(chalk.red(`❌ Connection closed: ${statusCode}.`));
             
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-                // 401 = loggedOut in Baileys = session invalid/no session
-                // Clear session and stay alive for web UI pairing
-                console.log(chalk.yellow('⚠️ No valid session (401/loggedOut). Bot is ready for web UI pairing.'));
-                try {
-                    rmSync('./session', { recursive: true, force: true });
-                } catch (e) {}
+                // 401 = session invalid
+                console.log(chalk.yellow('⚠️ Session expired (401). Starting pairing mode...'));
                 
-                // DON'T set global.waSocket to null - keep the socket alive
-                // The web UI will use it to request pairing code
-                // Only reset the pairing flag so a new code can be requested
-                pairingCodeRequested = false;
                 isConnecting = false;
-                console.log(chalk.green('✅ [BOT] Socket kept alive. Waiting for web UI pairing request...'));
+                global.waSocket = null;
+                
+                // Remove all listeners from the dead socket
+                try { XeonBotInc.ev.removeAllListeners(); } catch (e) {}
+                
+                // After 3 seconds, create a fresh socket with cleared session
+                // This will have creds.registered = false and auto-generate pairing code
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => {
+                    startXeonBotInc(true); // forcePairing = true
+                }, 3000);
+                
             } else {
-                // Reconnect for other reasons (network, server restart, etc)
+                // Other disconnects - normal reconnect
                 console.log(chalk.yellow('🔄 Reconnecting in 5 seconds...'));
                 isConnecting = false;
                 if (reconnectTimer) clearTimeout(reconnectTimer);
-                reconnectTimer = setTimeout(() => startXeonBotInc(), 5000);
+                reconnectTimer = setTimeout(() => startXeonBotInc(false), 5000);
             }
         }
     })
 
- // Track recently-notified callers to avoid spamming messages
+    // Anticall handler
     const antiCallNotified = new Set();
-
-// Anticall handler: reject calls but don't block callers
-XeonBotInc.ev.on('call', async (calls) => {
-  try {
-    const { readState: readAnticallState } = require('./commands/anticall');
-    const state = readAnticallState();
-    if (!state.enabled) return;
-
-    for (const call of calls) {
-      const callerJid = call.from || call.peerJid || call.chatId;
-      if (!callerJid) continue;
-
-      try {
-        // Try rejecting the call if supported
-        if (typeof XeonBotInc.rejectCall === 'function' && call.id) {
-          await XeonBotInc.rejectCall(call.id, callerJid);
-        } else if (typeof XeonBotInc.sendCallOfferAck === 'function' && call.id) {
-          await XeonBotInc.sendCallOfferAck(call.id, callerJid, 'reject');
+    XeonBotInc.ev.on('call', async (calls) => {
+        try {
+            const { readState: readAnticallState } = require('./commands/anticall');
+            const state = readAnticallState();
+            if (!state.enabled) return;
+            for (const call of calls) {
+                const callerJid = call.from || call.peerJid || call.chatId;
+                if (!callerJid) continue;
+                try {
+                    if (typeof XeonBotInc.rejectCall === 'function' && call.id) {
+                        await XeonBotInc.rejectCall(call.id, callerJid);
+                    }
+                    if (!antiCallNotified.has(callerJid)) {
+                        antiCallNotified.add(callerJid);
+                        setTimeout(() => antiCallNotified.delete(callerJid), 60000);
+                        await XeonBotInc.sendMessage(callerJid, {
+                            text: '📵 *Calls are not allowed on this number unless you have permission or send message to request for calls 📞 .*'
+                        });
+                    }
+                } catch (err) {
+                    console.error("Anticall error:", err);
+                }
+            }
+        } catch (e) {
+            console.error("Anticall handler failed:", e);
         }
-
-        // Notify the caller only once every 60s
-        if (!antiCallNotified.has(callerJid)) {
-          antiCallNotified.add(callerJid);
-          setTimeout(() => antiCallNotified.delete(callerJid), 60000);
-          await XeonBotInc.sendMessage(callerJid, {
-            text: '📵 *Calls are not allowed on this number unless you have permission or send message to request for calls 📞 .*'
-          });
-        }
-      } catch (err) {
-        console.error("Anticall error:", err);
-      }
-    }
-  } catch (e) {
-    console.error("Anticall handler failed:", e);
-  }
-});
-
+    });
 
     XeonBotInc.ev.on('creds.update', async () => {
         await saveCreds();
-        
-        // Upload immediately if it's the first time, then throttle
         if (!global.firstUploadDone) {
             global.firstUploadDone = true;
             await uploadSession();
@@ -543,18 +435,12 @@ XeonBotInc.ev.on('call', async (calls) => {
             setTimeout(async () => {
                 await uploadSession();
                 global.uploadingSession = false;
-            }, 30000); // Increased throttle to 30s to be safe
+            }, 30000);
         }
     })
 
     XeonBotInc.ev.on('group-participants.update', async (update) => {
         await handleGroupParticipantUpdate(XeonBotInc, update);
-    });
-
-    XeonBotInc.ev.on('messages.upsert', async (m) => {
-        if (m.messages[0].key && m.messages[0].key.remoteJid === 'status@broadcast') {
-            await handleStatus(XeonBotInc, m);
-        }
     });
 
     XeonBotInc.ev.on('status.update', async (status) => {
@@ -568,14 +454,12 @@ XeonBotInc.ev.on('call', async (calls) => {
     return XeonBotInc
 }
 
-
-// Export before starting to handle potential circular requirements
+// Export
 module.exports = { startXeonBotInc, savePairingCode, readPairingCode, clearPairingCode, pairingCodeRequested };
 
-// If this file is run directly (node index.js), also start the web server
+// If run directly
 if (require.main === module) {
     require('./server');
 } else {
-    // If required by server.js, don't auto-start here to let server.js control the boot
     console.log('🤖 [BOT] index.js loaded by server.js');
 }

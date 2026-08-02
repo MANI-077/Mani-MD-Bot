@@ -49,7 +49,7 @@ app.get('/ping', (req, res) => {
 app.get('/status', (req, res) => {
   res.json({
     bot: 'ᴍᴀɴɪ 𝗠𝗗 ☘',
-    version: '3.0.1',
+    version: '3.0.3',
     status: 'running',
     uptime: process.uptime(),
     memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
@@ -79,6 +79,9 @@ const io = new SocketServer(server, {
   }
 });
 
+// Expose io instance globally so index.js can broadcast pairing codes
+global.ioInstance = io;
+
 let users = new Map();
 let totalUsers = 0;
 let activeSockets = 0;
@@ -107,15 +110,13 @@ io.on('connection', (socket) => {
     try {
       let sock = global.waSocket;
       
-      // If bot is already connected (session exists), clear it first for fresh pairing
+      // Case 1: Bot is already connected with a registered session - clear and restart for fresh pairing
       if (sock && sock.authState && sock.authState.creds && sock.authState.creds.registered) {
         console.log(`🔄 [SOCKET] Existing session detected. Clearing for fresh pairing...`);
         socket.emit('pair-status', { message: 'Clearing existing session...', loading: true });
         
-        // Clear the session
         try {
           const fs = require('fs');
-          const path = require('path');
           const sessionDir = path.join(__dirname, 'session');
           
           if (fs.existsSync(sessionDir)) {
@@ -150,7 +151,7 @@ io.on('connection', (socket) => {
           console.error(`⚠️ [SOCKET] Could not clear session: ${clearErr.message}`);
         }
         
-        // Wait a bit then restart the bot with fresh session
+        // Wait then restart the bot with fresh session
         setTimeout(async () => {
           try {
             console.log(`🔄 [SOCKET] Restarting bot with fresh session...`);
@@ -160,13 +161,36 @@ io.on('connection', (socket) => {
             const newSock = await bot.startXeonBotInc();
             global.waSocket = newSock;
             
+            // Wait for connection to establish
             await new Promise(resolve => setTimeout(resolve, 5000));
             
-            // Now request pairing code with fresh session
-            const code = await newSock.requestPairingCode(cleanNumber);
-            const formattedCode = code.match(/.{1,4}/g).join('-');
-            socket.emit('pairing-code', formattedCode);
-            socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+            // Now use the helper to request pairing code
+            try {
+              const code = await newSock.requestWebPairingCode(cleanNumber);
+              socket.emit('pairing-code', code);
+              socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+            } catch (pairErr) {
+              // If pairing already requested, we need a full restart
+              console.log('⚠️ [SOCKET] Pairing already requested, restarting connection...');
+              socket.emit('pair-status', { message: 'Refreshing connection for pairing code...', loading: true });
+              
+              // Disconnect and recreate
+              newSock.ev.removeAllListeners();
+              const fs = require('fs');
+              const sessionDir = path.join(__dirname, 'session');
+              if (fs.existsSync(sessionDir)) {
+                fs.rmSync(sessionDir, { recursive: true, force: true });
+                fs.mkdirSync(sessionDir, { recursive: true });
+              }
+              
+              const freshSock = await bot.startXeonBotInc();
+              global.waSocket = freshSock;
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
+              const code = await freshSock.requestWebPairingCode(cleanNumber);
+              socket.emit('pairing-code', code);
+              socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+            }
             
             // Listen for connection success
             setTimeout(() => {
@@ -175,49 +199,102 @@ io.on('connection', (socket) => {
                 io.emit('stats', {
                   activeSockets: activeSockets,
                   totalUsers: totalUsers,
-                  botConnected: !!global.waSocket && !!global.waSocket.user
+                  botConnected: true
                 });
               }
             }, 30000);
           } catch (restartErr) {
             console.error(`❌ [SOCKET] Restart failed: ${restartErr.message}`);
             socket.emit('pair-error', 'Failed to restart bot. Please try again.');
+            socket.emit('pair-status', { message: 'Error: ' + restartErr.message, loading: false });
           }
         }, 2000);
         return;
       }
       
-      // Normal pairing flow (no existing session)
-      const getPairingCode = async (currentSock) => {
-        if (!currentSock) throw new Error('No socket');
-        return await currentSock.requestPairingCode(cleanNumber);
-      };
-
+      // Case 2: Normal pairing flow (no existing session or session not registered)
       try {
         if (!sock) throw new Error('No socket');
         
         // Show loading status
         socket.emit('pair-status', { message: 'Generating pairing code...', loading: true });
         
-        const code = await getPairingCode(sock);
-        const formattedCode = code.match(/.{1,4}/g).join('-');
-        socket.emit('pairing-code', formattedCode);
+        // Use the helper method if available, otherwise fall back
+        let code;
+        if (typeof sock.requestWebPairingCode === 'function') {
+          code = await sock.requestWebPairingCode(cleanNumber);
+        } else {
+          code = await sock.requestPairingCode(cleanNumber);
+          code = code?.match(/.{1,4}/g)?.join("-") || code;
+        }
+        
+        socket.emit('pairing-code', code);
         socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
-        console.log(`✅ [SOCKET] Pairing code generated: ${formattedCode}`);
+        console.log(`✅ [SOCKET] Pairing code generated: ${code}`);
+        
       } catch (err) {
         console.log('🔄 [SOCKET] Socket issue, attempting restart...', err.message);
-        socket.emit('pair-status', { message: 'Restarting connection...', loading: true });
+        socket.emit('pair-status', { message: 'Refreshing connection for pairing code...', loading: true });
         
-        const bot = require('./index');
-        sock = await bot.startXeonBotInc();
-        global.waSocket = sock;
-        
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        const code = await getPairingCode(sock);
-        const formattedCode = code.match(/.{1,4}/g).join('-');
-        socket.emit('pairing-code', formattedCode);
-        socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+        // If pairing was already requested, we need a clean restart
+        if (err.message === 'PAIRING_ALREADY_REQUESTED') {
+          // Clear session and restart
+          try {
+            const fs = require('fs');
+            const sessionDir = path.join(__dirname, 'session');
+            if (fs.existsSync(sessionDir)) {
+              fs.rmSync(sessionDir, { recursive: true, force: true });
+              fs.mkdirSync(sessionDir, { recursive: true });
+            }
+          } catch (e) {
+            console.error('⚠️ Could not clear session dir:', e.message);
+          }
+          
+          const bot = require('./index');
+          // Remove all listeners from old socket to prevent conflicts
+          if (global.waSocket) {
+            global.waSocket.ev.removeAllListeners();
+          }
+          
+          const newSock = await bot.startXeonBotInc();
+          global.waSocket = newSock;
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          try {
+            const code = await newSock.requestWebPairingCode(cleanNumber);
+            socket.emit('pairing-code', code);
+            socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+          } catch (pairErr) {
+            console.error('❌ [SOCKET] Pairing code request failed after restart:', pairErr.message);
+            socket.emit('pair-error', 'Failed to generate pairing code. Please try again.');
+          }
+        } else {
+          // Regular restart attempt
+          try {
+            const bot = require('./index');
+            if (global.waSocket) {
+              global.waSocket.ev.removeAllListeners();
+            }
+            sock = await bot.startXeonBotInc();
+            global.waSocket = sock;
+            
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            if (typeof sock.requestWebPairingCode === 'function') {
+              const code = await sock.requestWebPairingCode(cleanNumber);
+              socket.emit('pairing-code', code);
+            } else {
+              const code = await sock.requestPairingCode(cleanNumber);
+              const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+              socket.emit('pairing-code', formattedCode);
+            }
+            socket.emit('pair-status', { message: 'Pairing code generated! Enter it in WhatsApp.', loading: false });
+          } catch (restartErr) {
+            console.error('❌ [SOCKET] Restart failed:', restartErr.message);
+            socket.emit('pair-error', 'Failed to restart connection. Please refresh and try again.');
+            socket.emit('pair-status', { message: 'Error: ' + restartErr.message, loading: false });
+          }
+        }
       }
       
       // Check connection status after pairing
@@ -274,7 +351,6 @@ app.get('/pair', async (req, res) => {
       
       try {
         const fs = require('fs');
-        const path = require('path');
         const sessionDir = path.join(__dirname, 'session');
         
         if (fs.existsSync(sessionDir)) {
@@ -314,12 +390,15 @@ app.get('/pair', async (req, res) => {
           global.waSocket = sock;
           await new Promise(resolve => setTimeout(resolve, 5000));
           
-          const code = await sock.requestPairingCode(cleanNumber);
-          const formattedCode = code.match(/.{1,4}/g).join('-');
-          
-          // Emit to all sockets
-          io.emit('pairing-code', formattedCode);
-          console.log(`✅ [REST] Pairing code generated: ${formattedCode}`);
+          if (typeof sock.requestWebPairingCode === 'function') {
+            const code = await sock.requestWebPairingCode(cleanNumber);
+            io.emit('pairing-code', code);
+          } else {
+            const code = await sock.requestPairingCode(cleanNumber);
+            const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+            io.emit('pairing-code', formattedCode);
+          }
+          console.log(`✅ [REST] Pairing code generated`);
         } catch (restartErr) {
           console.error(`❌ [REST] Restart failed: ${restartErr.message}`);
         }
@@ -330,20 +409,33 @@ app.get('/pair', async (req, res) => {
     // Normal flow
     try {
       if (!sock) throw new Error('No socket');
-      const code = await sock.requestPairingCode(cleanNumber);
-      const formattedCode = code.match(/.{1,4}/g).join('-');
-      res.json({ code: formattedCode });
+      if (typeof sock.requestWebPairingCode === 'function') {
+        const code = await sock.requestWebPairingCode(cleanNumber);
+        res.json({ code: code });
+      } else {
+        const code = await sock.requestPairingCode(cleanNumber);
+        const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+        res.json({ code: formattedCode });
+      }
     } catch (err) {
       console.log('🔄 [REST] Socket issue, attempting restart...', err.message);
+      if (global.waSocket) {
+        global.waSocket.ev.removeAllListeners();
+      }
       const bot = require('./index');
       sock = await bot.startXeonBotInc();
       global.waSocket = sock;
       
       await new Promise(resolve => setTimeout(resolve, 5000));
       
-      const code = await sock.requestPairingCode(cleanNumber);
-      const formattedCode = code.match(/.{1,4}/g).join('-');
-      res.json({ code: formattedCode });
+      if (typeof sock.requestWebPairingCode === 'function') {
+        const code = await sock.requestWebPairingCode(cleanNumber);
+        res.json({ code: code });
+      } else {
+        const code = await sock.requestPairingCode(cleanNumber);
+        const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+        res.json({ code: formattedCode });
+      }
     }
   } catch (error) {
     console.error(`[REST] Final Pair error:`, error.message);

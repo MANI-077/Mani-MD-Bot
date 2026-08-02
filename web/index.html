@@ -383,6 +383,11 @@
             to { opacity: 1; }
         }
 
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .code-box {
             font-family: 'JetBrains Mono', monospace;
             font-size: 2rem;
@@ -799,7 +804,9 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
+        // Ensure Socket.IO connects with auto-reconnection
+        const socket = io({ reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 3000 });
+        
         const phoneInput = document.getElementById('phone-number');
         const getCodeBtn = document.getElementById('get-code-btn');
         const codeDisplay = document.getElementById('code-display');
@@ -816,7 +823,21 @@
         const responseTime = document.getElementById('response-time');
 
         const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-        socket.emit('set-user', userId);
+        
+        // Wait for connection before registering user
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+            socket.emit('set-user', userId);
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+        });
+        
+        socket.on('reconnect', () => {
+            console.log('🔄 Reconnected to server');
+            socket.emit('set-user', userId);
+        });
 
         // Auto-fetch system stats every 3 seconds
         setInterval(async () => {
@@ -863,13 +884,16 @@
         getCodeBtn.addEventListener('click', () => {
             const number = phoneInput.value.trim();
             if (!number) {
-                alert('Please enter a phone number.');
+                showNotification('Please enter a phone number with country code.', 'error');
                 return;
             }
 
             getCodeBtn.disabled = true;
             getCodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
             codeDisplay.style.display = 'none';
+            
+            // Show a progress notification
+            showNotification('Requesting pairing code...', 'info');
 
             socket.emit('pair-request', { userId, number });
         });
@@ -880,13 +904,14 @@
             pairingCode.innerText = code;
             codeDisplay.style.display = 'block';
             
-            navigator.clipboard.writeText(code.replace(/-/g, ''));
+            navigator.clipboard.writeText(code.replace(/-/g, '')).catch(() => {});
+            showNotification('Pairing code generated! Copy it and enter in WhatsApp.', 'success');
         });
 
         socket.on('pair-error', (error) => {
             getCodeBtn.disabled = false;
             getCodeBtn.innerHTML = '<i class="fas fa-link"></i> Get Pairing Code';
-            alert('Error: ' + error);
+            showNotification('Error: ' + error, 'error');
         });
 
         // Show pairing progress/status updates
@@ -910,16 +935,7 @@
                 botStatus.textContent = '🟢 Online';
                 statusText.textContent = 'Online';
                 
-                // Show success notification
-                const notif = document.createElement('div');
-                notif.style.cssText = 'position:fixed;top:20px;right:20px;background:#00ff88;color:#000;padding:15px 25px;border-radius:10px;font-weight:bold;z-index:9999;animation:fadeIn 0.5s;font-size:16px;box-shadow:0 4px 15px rgba(0,255,136,0.4);';
-                notif.innerHTML = '✅ <strong>Device Paired Successfully!</strong><br>Your bot is now connected.';
-                document.body.appendChild(notif);
-                setTimeout(() => {
-                    notif.style.opacity = '0';
-                    notif.style.transition = 'opacity 0.5s';
-                    setTimeout(() => notif.remove(), 500);
-                }, 5000);
+                showNotification('Device Paired Successfully! Your bot is now connected.', 'success');
             } else {
                 document.getElementById('session-status').textContent = 'Disconnected ❌';
                 document.getElementById('connection-status').textContent = 'Disconnected';
@@ -934,8 +950,34 @@
                 setTimeout(() => {
                     pairingCode.innerText = original;
                 }, 2000);
-            });
+            }).catch(() => {});
         });
+        
+        // Reusable notification function
+        function showNotification(message, type) {
+            // Remove existing notifications
+            const existing = document.querySelectorAll('.toast-notif');
+            existing.forEach(el => el.remove());
+            
+            const notif = document.createElement('div');
+            notif.className = 'toast-notif';
+            let bgColor = '#00ff88';
+            let textColor = '#000';
+            if (type === 'error') { bgColor = '#ff4444'; textColor = '#fff'; }
+            else if (type === 'info') { bgColor = '#4488ff'; textColor = '#fff'; }
+            else if (type === 'warning') { bgColor = '#ffaa00'; textColor = '#000'; }
+            
+            notif.style.cssText = `position:fixed;top:20px;right:20px;left:20px;max-width:400px;margin:0 auto;background:${bgColor};color:${textColor};padding:15px 25px;border-radius:12px;font-weight:600;z-index:9999;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3);backdrop-filter:blur(10px);text-align:center;animation:slideDown 0.4s ease;`;
+            notif.innerHTML = message;
+            document.body.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.style.opacity = '0';
+                notif.style.transform = 'translateY(-20px)';
+                notif.style.transition = 'all 0.4s ease';
+                setTimeout(() => notif.remove(), 400);
+            }, 4000);
+        }
     </script>
 </body>
 </html>

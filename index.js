@@ -82,8 +82,13 @@ try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 
 global.botname = "ᴍᴀɴɪ ᴍᴅ ☘"
 global.themeemoji = "•"
-const pairingCode = !!phoneNumber || process.argv.includes("--pairing-code")
+// On server (non-TTY), pairing is handled via web UI - don't auto-request
+const isTTY = process.stdin.isTTY;
+const pairingCode = !!phoneNumber && isTTY || process.argv.includes("--pairing-code")
 const useMobile = process.argv.includes("--mobile")
+
+// Flag to track if pairing code was already requested (server env)
+let pairingCodeRequested = false;
 
 // Only create readline interface if we're in an interactive environment
 const rl = process.stdin.isTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null
@@ -220,13 +225,34 @@ async function startXeonBotInc() {
             try {
                 let num = phoneNumber.replace(/[^0-9]/g, '')
                 let code = await XeonBotInc.requestPairingCode(num)
+                pairingCodeRequested = true;
                 code = code?.match(/.{1,4}/g)?.join("-") || code
                 console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
+                
+                // Also broadcast to any connected web clients via global event
+                if (global.ioInstance) {
+                    global.ioInstance.emit('pairing-code', code);
+                    console.log('✅ [PAIRING] Code broadcast to web UI via Socket.IO');
+                }
             } catch (error) {
                 console.error('Error requesting pairing code:', error)
             }
         }, 3000)
     }
+
+    // Helper function to request pairing code (used by web UI)
+    XeonBotInc.requestWebPairingCode = async (number) => {
+        if (pairingCodeRequested) {
+            // Already requested - need to reconnect to get a new code
+            throw new Error('PAIRING_ALREADY_REQUESTED');
+        }
+        let num = number.replace(/[^0-9]/g, '');
+        let code = await XeonBotInc.requestPairingCode(num);
+        pairingCodeRequested = true;
+        code = code?.match(/.{1,4}/g)?.join("-") || code;
+        console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
+        return code;
+    };
 
     // Connection handling
     XeonBotInc.ev.on('connection.update', async (s) => {
@@ -378,6 +404,7 @@ async function startXeonBotInc() {
                     console.error('Error clearing session:', e);
                 }
                 global.waSocket = null;
+                pairingCodeRequested = false; // Reset so new pairing can be requested
             } else if (statusCode === 401) {
                 console.log(chalk.yellow('⚠️ Unauthorized/Session expired. Attempting to restore from cloud...'));
                 setTimeout(async () => {

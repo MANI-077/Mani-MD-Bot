@@ -455,27 +455,20 @@ async function startXeonBotInc() {
             
             console.log(chalk.red(`❌ Connection closed: ${statusCode}.`));
             
-            if (statusCode === DisconnectReason.loggedOut) {
-                try {
-                    rmSync('./session', { recursive: true, force: true });
-                    console.log(chalk.red('⚠️ Session logged out and cleared. Please restart and re-pair.'));
-                } catch (e) {
-                    console.error('Error clearing session:', e);
-                }
-                global.waSocket = null;
-                pairingCodeRequested = false; // Reset so new pairing can be requested
-                isConnecting = false;
-            } else if (statusCode === 401) {
-                // 401 means session is invalid - DON'T auto-reconnect endlessly
-                // Just wait for the user to pair via web UI
-                console.log(chalk.yellow('⚠️ Session invalid (401). Waiting for user to pair via web UI...'));
-                global.waSocket = null;
-                pairingCodeRequested = false;
-                isConnecting = false;
-                // Clear session so we're ready for fresh pairing
+            if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+                // 401 = loggedOut in Baileys = session invalid/no session
+                // Clear session and stay alive for web UI pairing
+                console.log(chalk.yellow('⚠️ No valid session (401/loggedOut). Bot is ready for web UI pairing.'));
                 try {
                     rmSync('./session', { recursive: true, force: true });
                 } catch (e) {}
+                
+                // DON'T set global.waSocket to null - keep the socket alive
+                // The web UI will use it to request pairing code
+                // Only reset the pairing flag so a new code can be requested
+                pairingCodeRequested = false;
+                isConnecting = false;
+                console.log(chalk.green('✅ [BOT] Socket kept alive. Waiting for web UI pairing request...'));
             } else {
                 // Reconnect for other reasons (network, server restart, etc)
                 console.log(chalk.yellow('🔄 Reconnecting in 5 seconds...'));

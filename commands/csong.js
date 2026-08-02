@@ -54,42 +54,46 @@ module.exports = {
         const author   = video.author?.name || 'Unknown';
         const ago      = video.ago || '';
 
-        // ── Multi-API fallback (Ruhend-Scraper → Izumi → Violetics) ────────
+        // ── Multi-API fallback system ────────
         let downloadUrl = null;
         
-        // 1️⃣ Ruhend-Scraper
-        try {
-            const res = await ytmp3(videoUrl);
-            if (res && res.audio) {
-                downloadUrl = res.audio;
+        const apis = [
+            // 1. Ruhend-Scraper
+            async () => {
+                const res = await ytmp3(videoUrl);
+                return res && res.audio ? res.audio : null;
+            },
+            // 2. GiftedTech API
+            async () => {
+                const res = await axios.get(`https://api.giftedtech.my.id/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.result?.download_url || null;
+            },
+            // 3. Siputzx API
+            async () => {
+                const res = await axios.get(`https://api.siputzx.my.id/api/dwnld/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.data?.dl || null;
+            },
+            // 4. Vreden API
+            async () => {
+                const res = await axios.get(`https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.result?.download?.url || null;
+            },
+            // 5. Izumi API
+            async () => {
+                const res = await axios.get(`https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`, { timeout: 15000 });
+                return res.data?.result?.download || null;
             }
-        } catch (err) {
-            console.log('[csong] Ruhend-Scraper failed:', err.message);
-        }
+        ];
 
-        if (!downloadUrl) {
-            // 2️⃣ Izumi API
+        for (const api of apis) {
             try {
-                const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
-                const res = await axios.get(izumiUrl, { timeout: 25000 });
-                if (res.data?.result?.download) {
-                    downloadUrl = res.data.result.download;
+                const url = await api();
+                if (url) {
+                    downloadUrl = url;
+                    break;
                 }
             } catch (err) {
-                console.log('[csong] Izumi API failed:', err.message);
-            }
-        }
-
-        if (!downloadUrl) {
-            // 3️⃣ Violetics API
-            try {
-                const violeticsUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
-                const res = await axios.get(violeticsUrl, { timeout: 25000 });
-                if (res.data?.result?.download_url) {
-                    downloadUrl = res.data.result.download_url;
-                }
-            } catch (err) {
-                console.log('[csong] Violetics API failed:', err.message);
+                console.log('[csong] API fallback failed:', err.message);
             }
         }
 

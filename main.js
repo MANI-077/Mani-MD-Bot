@@ -36,6 +36,7 @@ const devCommand = require('./commands/dev');
 const hackCommand = require('./commands/hack');
 const newsletterCommand = require('./commands/newsletter');
 const blockUnblockCommand = require('./commands/blockUnblock');
+const { autoreactCommand, isAutoreactEnabled } = require('./commands/autoreact');
 const menuCommand = require('./commands/menu');
 const banCommand = require('./commands/ban');
 const { promoteCommand } = require('./commands/promote');
@@ -194,6 +195,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
             message.message?.videoMessage?.caption?.trim() ||
             ''
         ).toLowerCase().replace(/\.\s+/g, '.').trim();
+
+        // Auto-reaction logic
+        if (isAutoreactEnabled() && !message.key.fromMe && !userMessage.startsWith('.')) {
+            const emojis = ['❤️', '✨', '🔥', '🌸', '⚡', '🎵', '✅', '👑', '🌟'];
+            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+            await sock.sendMessage(chatId, { react: { text: randomEmoji, key: message.key } });
+        }
 
         // Preserve raw message for commands like .tag that need original casing
         const rawText = message.message?.conversation?.trim() ||
@@ -1065,6 +1073,11 @@ case userMessage.startsWith('.cinfo2'):
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const autoStatusArgs = userMessage.split(' ').slice(1);
                 await autoStatusCommand(sock, chatId, message, autoStatusArgs);
+                break;
+            case userMessage.startsWith('.autoreact'):
+                await sock.sendMessage(chatId, { react: { text: "🎭", key: message.key } });
+                const autoReactArgs = userMessage.split(' ').slice(1);
+                await autoreactCommand(sock, chatId, message, autoReactArgs);
                 break;
             case userMessage.startsWith('.simp'):
             await sock.sendMessage(chatId, { react: { text: "🤪", key: message.key } });

@@ -42,54 +42,49 @@ async function songCommand(sock, chatId, message) {
         const videoUrl = video.url;
         let songData = null;
 
-        // --- Multi-API fallback (Ruhend-Scraper → Izumi → Violetics) ---
-        try {
-            // 1️⃣ Ruhend-Scraper (Primary)
-            const res = await ytmp3(videoUrl);
-            if (res && res.audio) {
-                songData = {
-                    title: video.title,
-                    download: res.audio
-                };
+        // --- Multi-API fallback system ---
+        const apis = [
+            // 1. Ruhend-Scraper
+            async () => {
+                const res = await ytmp3(videoUrl);
+                return res && res.audio ? { download: res.audio } : null;
+            },
+            // 2. GiftedTech API
+            async () => {
+                const res = await axios.get(`https://api.giftedtech.my.id/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.result?.download_url ? { download: res.data.result.download_url } : null;
+            },
+            // 3. Siputzx API
+            async () => {
+                const res = await axios.get(`https://api.siputzx.my.id/api/dwnld/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.data?.dl ? { download: res.data.data.dl } : null;
+            },
+            // 4. Vreden API
+            async () => {
+                const res = await axios.get(`https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+                return res.data?.result?.download?.url ? { download: res.data.result.download.url } : null;
+            },
+            // 5. Izumi API
+            async () => {
+                const res = await axios.get(`https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`, { timeout: 15000 });
+                return res.data?.result?.download ? { download: res.data.result.download } : null;
             }
-        } catch (err) {
-            console.log("Ruhend-Scraper failed:", err.message);
-        }
+        ];
 
-        if (!songData) {
+        for (const api of apis) {
             try {
-                // 2️⃣ Izumi API
-                const izumiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(videoUrl)}&format=mp3`;
-                const res = await axios.get(izumiUrl, { timeout: 25000 });
-                if (res.data?.result?.download) {
-                    songData = {
-                        title: res.data.result.title,
-                        download: res.data.result.download
-                    };
+                const data = await api();
+                if (data && data.download) {
+                    songData = data;
+                    break;
                 }
             } catch (err) {
-                console.log("Izumi API failed:", err.message);
+                console.log("API fallback failed:", err.message);
             }
         }
 
         if (!songData) {
-            // 3️⃣ Violetics API
-            try {
-                const violeticsUrl = `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`;
-                const res = await axios.get(violeticsUrl, { timeout: 25000 });
-                if (res.data?.result?.download_url) {
-                    songData = {
-                        title: res.data.result.title,
-                        download: res.data.result.download_url
-                    };
-                }
-            } catch (err) {
-                console.log("Violetics API failed:", err.message);
-            }
-        }
-
-        if (!songData) {
-            return await sock.sendMessage(chatId, { text: "❌ Failed to get download link. Please try again later." }, { quoted: message });
+            return await sock.sendMessage(chatId, { text: "❌ Download link not found after trying multiple APIs! Please try a different song or try again later." }, { quoted: message });
         }
 
         const songInfo =
@@ -135,15 +130,17 @@ async function songCommand(sock, chatId, message) {
 
                 const fileName = `${video.title.replace(/[<>:"/\\|?*]+/g, '')}.mp3`;
 
+                const audioBuffer = await axios.get(songData.download, { responseType: 'arraybuffer' }).then(res => Buffer.from(res.data));
+
                 if (body.trim() === "1") {
                     await sock.sendMessage(chatId, {
-                        audio: { url: songData.download },
+                        audio: audioBuffer,
                         mimetype: "audio/mpeg",
                         fileName: fileName
                     }, { quoted: reply });
                 } else {
                     await sock.sendMessage(chatId, {
-                        document: { url: songData.download },
+                        document: audioBuffer,
                         mimetype: "audio/mpeg",
                         fileName: fileName
                     }, { quoted: reply });
@@ -154,6 +151,7 @@ async function songCommand(sock, chatId, message) {
 
             } catch (err) {
                 console.error("Song reply handler error:", err);
+                await sock.sendMessage(chatId, { text: "❌ Failed to send audio. The download link might have expired." }, { quoted: sentMsg });
             }
         };
 

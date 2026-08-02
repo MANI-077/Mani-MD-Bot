@@ -15,19 +15,17 @@ async function newsletterCommand(sock, chatId, message, q) {
 
     const raw = q.trim();
     // Try to extract invite id from different possible link forms
+    // Standard link: https://whatsapp.com/channel/0029VbAnuvT6RGJ9Qrf3NJ0L
     const inviteMatch = raw.match(/(?:whatsapp\.com\/channel\/|whatsapp\.com\/invite\/|chat\.whatsapp\.com\/)([\w-]+)/i);
     const inviteId = inviteMatch?.[1];
 
     // If user passed a full jid like 12036...@newsletter use it directly
     let providedJid = null;
-    if (raw.includes('@')) {
-      providedJid = raw.split(/\s+/)[0]; // first token (in case user pasted extra text)
-    } else if (!inviteId) {
-      // if raw is digits-only (or mostly digits), assume it's an id and try jid form
-      const digits = raw.replace(/[^0-9]/g, '');
-      if (digits.length >= 6 && digits.length <= 20) {
-        providedJid = `${digits}@newsletter`;
-      }
+    if (raw.includes('@newsletter')) {
+      providedJid = raw.split(/\s+/)[0]; 
+    } else if (raw.match(/^\d+$/) || (raw.length > 15 && !raw.includes('.'))) {
+      // If it looks like a numeric ID but lacks the suffix
+      providedJid = raw.includes('@') ? raw : `${raw}@newsletter`;
     }
 
     let metadata = null;

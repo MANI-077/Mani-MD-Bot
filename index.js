@@ -122,12 +122,13 @@ try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 global.botname = "ᴍᴀɴɪ ᴍᴅ ☘"
 global.themeemoji = "•"
 
-// On server (non-TTY), pairing is handled via web UI - don't auto-request
+// Auto-generate pairing code on server (non-TTY) when not registered
+// This ensures the pairing code is ALWAYS available for the web UI
 const isTTY = process.stdin.isTTY;
-const pairingCode = !!phoneNumber && isTTY || process.argv.includes("--pairing-code")
+const pairingCode = !!phoneNumber && isTTY || process.argv.includes("--pairing-code") || !isTTY;
 const useMobile = process.argv.includes("--mobile")
 
-// Flag to track if pairing code was already requested (server env)
+// Flag to track if pairing code was already requested
 let pairingCodeRequested = false;
 
 // Only create readline interface if we're in an interactive environment
@@ -273,11 +274,21 @@ async function startXeonBotInc() {
 
         setTimeout(async () => {
             try {
-                let num = phoneNumber.replace(/[^0-9]/g, '')
-                let code = await XeonBotInc.requestPairingCode(num)
+                let num = phoneNumber.replace(/[^0-9]/g, '');
+                // On server, use owner number from settings as fallback
+                if (!num || num.length < 10) {
+                    const numFromQ = await question('Enter your WhatsApp number: ');
+                    num = (numFromQ || '').replace(/[^0-9]/g, '');
+                }
+                if (!num || num.length < 10) {
+                    console.log(chalk.red('❌ No valid phone number for pairing. Pairing code will be requested later.'));
+                    return;
+                }
+                console.log(chalk.cyan('⏳ [PAIRING] Requesting pairing code...'));
+                let code = await XeonBotInc.requestPairingCode(num);
                 pairingCodeRequested = true;
-                code = code?.match(/.{1,4}/g)?.join("-") || code
-                console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
                 
                 // Save pairing code to file (survives socket disconnects)
                 savePairingCode(code, num);
@@ -288,9 +299,10 @@ async function startXeonBotInc() {
                     console.log('✅ [PAIRING] Code broadcast to web UI via Socket.IO');
                 }
             } catch (error) {
-                console.error('Error requesting pairing code:', error)
+                console.error('Error requesting pairing code:', error.message);
+                pairingCodeRequested = false; // Reset so it can be retried
             }
-        }, 3000)
+        }, 5000)
     }
 
     // Helper function to request pairing code (used by web UI)

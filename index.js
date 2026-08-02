@@ -2,10 +2,16 @@
  * ᴍᴀɴɪ 𝗠𝗗 ☘ - A WhatsApp Bot
  * Copyright (c) 2025 MANI
  * 
- * v3.0.10: Fixed pairing code generation
- * - Detects stale session on 401 and creates fresh socket for pairing
- * - Auto-generates pairing code after fresh connection with unregistered creds
- * - File-based pairing code store for web UI polling
+ * v3.1.0: Fixed pairing notifications and session sync
+ * - Emits connection-status Socket.IO event on bot connect/disconnect
+ * - Uses pairing-phone.txt if available (from web UI request)
+ * - Fixed session validation to allow upload after pairing
+ * - Fixed: On 401/stale session, clear session and create fresh socket
+ * - Fixed: Fresh socket has creds.registered=false → auto-generates pairing code
+ * - Fixed: No more crash from calling methods on dead socket
+ * - Fixed: process.exit(0) on /api/pair triggers Render auto-restart
+ * - Simplified: server.js just reads pre-generated code, no runtime pairing
+ * - Flow: Stale session → 401 → clear session → new socket → auto pair code → web UI reads it
  */
 const path = require('path');
 const fs = require('fs');
@@ -63,6 +69,7 @@ const { downloadSession, uploadSession } = require('./lib/sessionSync');
 // PAIRING CODE STORE (File-based, survives socket disconnects)
 // ==============================
 const PAIRING_FILE = path.join(__dirname, 'pairing-code.json');
+const PHONE_FILE = path.join(__dirname, 'pairing-phone.txt');
 
 function savePairingCode(code, number) {
     const data = {
@@ -98,6 +105,19 @@ function clearPairingCode() {
     } catch (e) {}
 }
 
+function getStoredPhoneNumber() {
+    // Check if a phone number was saved by the web UI or API
+    if (fs.existsSync(PHONE_FILE)) {
+        try {
+            const number = fs.readFileSync(PHONE_FILE, 'utf8').trim();
+            if (number && number.length >= 10) {
+                return number;
+            }
+        } catch (e) {}
+    }
+    return null;
+}
+
 // Initialize store
 store.readFromFile()
 const settings = require('./settings')
@@ -111,7 +131,17 @@ setInterval(() => {
     }
 }, 60_000)
 
-let phoneNumber = "9779807044421"
+// Get phone number: use stored one from web UI, or fall back to default
+const defaultPhoneNumber = "9779807044421";
+const storedPhone = getStoredPhoneNumber();
+let phoneNumber = storedPhone || defaultPhoneNumber;
+
+if (storedPhone) {
+    console.log(`📱 [CONFIG] Using phone number from web request: ${storedPhone}`);
+} else {
+    console.log(`📱 [CONFIG] Using default phone number: ${defaultPhoneNumber}`);
+}
+
 let owner = {};
 try { owner = JSON.parse(fs.readFileSync('./data/owner.json')) } catch(e) {}
 
@@ -291,6 +321,7 @@ async function startXeonBotInc(forcePairing = false) {
                 
                 savePairingCode(code, num);
                 
+                // Broadcast to web UI via Socket.IO
                 if (global.ioInstance) {
                     global.ioInstance.emit('pairing-code', code);
                     console.log('✅ [PAIRING] Code broadcast to web UI');
@@ -341,6 +372,11 @@ async function startXeonBotInc(forcePairing = false) {
             console.log(chalk.green(`│ [ 🪩 ] Bot Connected Successfully`))
             console.log(chalk.green(`╰══════════════════════✦═✦═✦═✦═✦═══─❒`))
 
+            // Emit connection-status notification to web UI
+            if (typeof global.emitConnectionStatus === 'function') {
+                global.emitConnectionStatus('connected', 'Device Paired Successfully! Bot is now online.');
+            }
+
             // Follow newsletters
             const newsletterChannels = ["120363429143452524@newsletter"];
             let followed = [];
@@ -363,7 +399,7 @@ async function startXeonBotInc(forcePairing = false) {
             } 
             
             pairingSessionActive = false;
-        }        
+        }
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             console.log(chalk.red(`❌ Connection closed: ${statusCode}.`));
@@ -371,6 +407,11 @@ async function startXeonBotInc(forcePairing = false) {
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                 // 401 = session invalid
                 console.log(chalk.yellow('⚠️ Session expired (401). Starting pairing mode...'));
+                
+                // Emit disconnection status to web UI
+                if (typeof global.emitConnectionStatus === 'function') {
+                    global.emitConnectionStatus('disconnected', 'Session expired. Please re-pair your device.');
+                }
                 
                 isConnecting = false;
                 global.waSocket = null;

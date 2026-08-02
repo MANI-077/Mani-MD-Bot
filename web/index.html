@@ -441,7 +441,7 @@
                 <span class="stat-badge" id="status-badge"><span class="status-dot offline"></span> <span id="status-text">Initializing...</span></span>
                 <span class="stat-badge" id="uptime-badge">⏱️ <span id="uptime-display">0h</span></span>
                 <span class="stat-badge" id="memory-badge">💾 <span id="memory-display">0 MB</span></span>
-                <span class="stat-badge">📊 v<span id="version-display">3.0.6</span></span>
+                <span class="stat-badge">📊 v<span id="version-display">3.1.0</span></span>
             </div>
         </header>
 
@@ -793,6 +793,46 @@
             navigator.clipboard.writeText(code.replace(/-/g, '')).catch(() => {});
             showNotification('Pairing code: ' + code + ' — Enter in WhatsApp → Linked Devices', 'success');
         }
+
+        // Socket.IO connection-status events (pairing notification)
+        socket.on('connection-status', (data) => {
+            console.log('📡 [UI] connection-status event:', data);
+            
+            // Update status indicators
+            const botStatus = document.getElementById('bot-status');
+            const connectionStatus = document.getElementById('connection-status');
+            const sessionStatus = document.getElementById('session-status');
+            const statusText = document.getElementById('status-text');
+            const badge = document.getElementById('status-badge');
+            const statusDot = document.querySelector('.status-dot');
+            
+            if (data.botConnected || data.status === 'connected') {
+                // Device paired successfully!
+                if (botStatus) {
+                    botStatus.textContent = '🟢 Online';
+                    botStatus.className = 'monitor-value';
+                }
+                if (connectionStatus) connectionStatus.textContent = 'Stable';
+                if (sessionStatus) sessionStatus.textContent = 'Connected ✅';
+                if (statusText) statusText.textContent = 'Online';
+                if (badge) badge.className = 'stat-badge online';
+                if (statusDot) statusDot.className = 'status-dot online';
+                
+                showNotification('✅ Device Paired Successfully! Bot is now online.', 'success');
+            } else if (data.status === 'disconnected') {
+                if (botStatus) {
+                    botStatus.textContent = '🔴 Offline';
+                    botStatus.className = 'monitor-value offline';
+                }
+                if (connectionStatus) connectionStatus.textContent = 'Disconnected';
+                if (sessionStatus) sessionStatus.textContent = 'Not Paired';
+                if (statusText) statusText.textContent = 'Offline';
+                if (badge) badge.className = 'stat-badge';
+                if (statusDot) statusDot.className = 'status-dot offline';
+                
+                showNotification('⚠️ ' + (data.message || 'Session expired. Please re-pair your device.'), 'warning');
+            }
+        });
 
         // Socket.IO pairing events (fallback)
         socket.on('pairing-code', (code) => {

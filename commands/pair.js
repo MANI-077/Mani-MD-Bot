@@ -40,29 +40,51 @@ async function pairCommand(sock, chatId, message, q) {
             // Try local pairing first (via server.js)
             try {
                 const port = process.env.PORT || 3000;
-                const response = await axios.get(`http://localhost:${port}/pair?number=${number}`, {
-                    timeout: 30000
+                const response = await axios.post(`http://localhost:${port}/api/pair`, {
+                    number: number
+                }, {
+                    timeout: 30000,
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 console.log("Local API response:", response.data);
 
-                if (response.data && response.data.code) {
-                    const code = response.data.code;
-                    if (code === "Service Unavailable") {
-                        throw new Error('Service Unavailable');
+                if (response.data && response.data.status === 'restarting') {
+                    // Wait for the bot to restart and generate pairing code
+                    await sleep(15000);
+                    
+                    // Poll for the pairing code
+                    let codeFound = null;
+                    for (let attempt = 0; attempt < 20; attempt++) {
+                        try {
+                            const codeRes = await axios.get(`http://localhost:${port}/api/pairing-code`, {
+                                timeout: 5000
+                            });
+                            if (codeRes.data && codeRes.data.code) {
+                                codeFound = codeRes.data.code;
+                                break;
+                            }
+                        } catch (e) {
+                            // Still waiting...
+                        }
+                        await sleep(3000);
                     }
 
-                    await sleep(1000);
-                    await sock.sendMessage(chatId, {
-                        text: `✅ *Pairing Code:*\n\n\`${code}\`\n\n📱 Open WhatsApp > Linked Devices > Link a Device\n🔢 Enter the code above\n\n> 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
-                    }, { quoted: message });
+                    if (codeFound) {
+                        await sock.sendMessage(chatId, {
+                            text: `✅ *Pairing Code:*\n\n\`${codeFound}\`\n\n📱 Open WhatsApp > Linked Devices > Link a Device\n🔢 Enter the code above\n\n> 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
+                        }, { quoted: message });
+                    } else {
+                        await sock.sendMessage(chatId, {
+                            text: `⏳ Bot is restarting. Your pairing code will be available at the web dashboard shortly.\n\nVisit: ${process.env.RENDER_EXTERNAL_URL || 'your-deployed-url'}\n\n> 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
+                        }, { quoted: message });
+                    }
                 } else {
                     throw new Error('Invalid response from server');
                 }
             } catch (apiError) {
                 console.error('Local API Error:', apiError.message);
-                // Fallback: use manual pairing method
+                // Fallback: use manual pairing method directly
                 try {
-                    const { utils } = require('@whiskeysockets/baileys');
                     const code = await sock.requestPairingCode(number);
                     
                     const formattedCode = code.match(/.{1,4}/g).join('-');

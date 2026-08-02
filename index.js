@@ -2,7 +2,9 @@
  * ᴍᴀɴɪ 𝗠𝗗 ☘ - A WhatsApp Bot
  * Copyright (c) 2025 MANI
  * 
- * v3.1.0: Fixed pairing notifications and session sync
+ * v3.1.1: Fixed link device notification via WhatsApp
+ * - Sends WhatsApp notification message to owner when device is linked
+ * - Sends pairing code via WhatsApp message so user receives it in chat
  * - Emits connection-status Socket.IO event on bot connect/disconnect
  * - Uses pairing-phone.txt if available (from web UI request)
  * - Fixed session validation to allow upload after pairing
@@ -220,6 +222,68 @@ async function startXeonBotInc(forcePairing = false) {
     store.bind(XeonBotInc.ev)
     global.waSocket = XeonBotInc;
 
+    // ==============================
+    // PAIRING CODE REQUEST - with WhatsApp notification
+    // ==============================
+    if (!XeonBotInc.authState.creds.registered) {
+        console.log(chalk.cyan('🔑 [PAIRING] Credentials not registered - will request pairing code...'));
+        
+        setTimeout(async () => {
+            try {
+                let num = phoneNumber.replace(/[^0-9]/g, '');
+                if (!num || num.length < 10) {
+                    const numFromQ = await question('Enter your WhatsApp number: ');
+                    num = (numFromQ || '').replace(/[^0-9]/g, '');
+                }
+                if (!num || num.length < 10) {
+                    console.log(chalk.red('❌ No valid phone number for pairing.'));
+                    return;
+                }
+                
+                console.log(chalk.cyan(`⏳ [PAIRING] Requesting code for ${num}...`));
+                let code = await XeonBotInc.requestPairingCode(num);
+                pairingCodeRequested = true;
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
+                
+                savePairingCode(code, num);
+                
+                // Broadcast to web UI via Socket.IO
+                if (global.ioInstance) {
+                    global.ioInstance.emit('pairing-code', code);
+                    console.log('✅ [PAIRING] Code broadcast to web UI');
+                }
+
+                // Send pairing code notification via WhatsApp to the owner
+                const ownerJid = settings.ownerNumber + '@s.whatsapp.net';
+                try {
+                    await XeonBotInc.sendMessage(ownerJid, {
+                        text: `╭═══ 🤖 *ᴍᴀɴɪ 𝗠𝗗 ☘* ═══╮\n\n` +
+                              `Your pairing code has been generated!\n\n` +
+                              `🔑 *Code:* \`${code}\`\n` +
+                              `📱 *Number:* +${num}\n\n` +
+                              `══════════════════════\n` +
+                              `📱 *To link this device:*\n\n` +
+                              `1. Open WhatsApp\n` +
+                              `2. Go to Settings → Linked Devices\n` +
+                              `3. Tap "Link a Device"\n` +
+                              `4. Tap "Pair with phone number"\n` +
+                              `5. Enter the code: *${code}*\n\n` +
+                              `══════════════════════\n` +
+                              `> _Device will be linked automatically after entering the code._\n\n` +
+                              `> © 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
+                    });
+                    console.log(`✅ [NOTIFICATION] Pairing code sent to WhatsApp: ${ownerJid}`);
+                } catch (notifError) {
+                    console.log('⚠️ Could not send pairing notification via WhatsApp:', notifError.message);
+                }
+            } catch (error) {
+                console.error('❌ [PAIRING] Error requesting pairing code:', error.message);
+                pairingCodeRequested = false;
+            }
+        }, 5000);
+    }
+
     // Message handling
     XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
         try {
@@ -297,42 +361,6 @@ async function startXeonBotInc(forcePairing = false) {
     XeonBotInc.public = true
     XeonBotInc.serializeM = (m) => smsg(XeonBotInc, m, store)
 
-    // Auto-request pairing code when not registered
-    if (!XeonBotInc.authState.creds.registered) {
-        console.log(chalk.cyan('🔑 [PAIRING] Credentials not registered - will request pairing code...'));
-        
-        setTimeout(async () => {
-            try {
-                let num = phoneNumber.replace(/[^0-9]/g, '');
-                if (!num || num.length < 10) {
-                    const numFromQ = await question('Enter your WhatsApp number: ');
-                    num = (numFromQ || '').replace(/[^0-9]/g, '');
-                }
-                if (!num || num.length < 10) {
-                    console.log(chalk.red('❌ No valid phone number for pairing.'));
-                    return;
-                }
-                
-                console.log(chalk.cyan(`⏳ [PAIRING] Requesting code for ${num}...`));
-                let code = await XeonBotInc.requestPairingCode(num);
-                pairingCodeRequested = true;
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
-                console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
-                
-                savePairingCode(code, num);
-                
-                // Broadcast to web UI via Socket.IO
-                if (global.ioInstance) {
-                    global.ioInstance.emit('pairing-code', code);
-                    console.log('✅ [PAIRING] Code broadcast to web UI');
-                }
-            } catch (error) {
-                console.error('❌ [PAIRING] Error requesting pairing code:', error.message);
-                pairingCodeRequested = false;
-            }
-        }, 5000);
-    }
-
     // Connection handler
     XeonBotInc.ev.on('connection.update', async (s) => {
         const { connection, lastDisconnect } = s
@@ -350,6 +378,7 @@ async function startXeonBotInc(forcePairing = false) {
             const githubLink = `https://github.com/${username}`;
             const botNumber = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
             
+            // Send connection notice to bot owner via WhatsApp
             try {
                 await XeonBotInc.sendMessage(botNumber, {
                     image: { url: "./assets/bot_image.jpg" },
@@ -366,6 +395,31 @@ async function startXeonBotInc(forcePairing = false) {
                 });
             } catch (e) {
                 console.log('⚠️ Could not send connection notice:', e.message);
+            }
+
+            // Send LINK DEVICE NOTIFICATION to owner via WhatsApp
+            // This notifies the user that their device has been successfully linked
+            const ownerJid = settings.ownerNumber + '@s.whatsapp.net';
+            try {
+                await XeonBotInc.sendMessage(ownerJid, {
+                    text: `╭═══════════════════════════╮\n` +
+                          `│  🔔 *DEVICE LINKED*           │\n` +
+                          `╰═══════════════════════════╯\n\n` +
+                          `✅ *Your device has been successfully linked!*\n\n` +
+                          `═══════════════════════════\n` +
+                          `🤖 *Bot:* 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘\n` +
+                          `📱 *Linked Device:* ${phoneNumber || 'Your Phone'}\n` +
+                          `🌐 *Status:* Online & Active\n` +
+                          `⏱️ *Connected At:* ${new Date().toLocaleString()}\n` +
+                          `═══════════════════════════\n\n` +
+                          `Your bot is now running and ready to use!\n` +
+                          `Prefix: *${prefix}*\n\n` +
+                          `> Type *${prefix}menu* to see all commands.\n\n` +
+                          `> © 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
+                });
+                console.log(`✅ [LINK-NOTIFICATION] Sent device linked notification to: ${ownerJid}`);
+            } catch (linkNotifErr) {
+                console.log('⚠️ Could not send link device notification:', linkNotifErr.message);
             }
 
             await delay(500)
@@ -407,6 +461,31 @@ async function startXeonBotInc(forcePairing = false) {
             if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                 // 401 = session invalid
                 console.log(chalk.yellow('⚠️ Session expired (401). Starting pairing mode...'));
+                
+                // Send disconnection notification via WhatsApp
+                const ownerJid = settings.ownerNumber + '@s.whatsapp.net';
+                try {
+                    if (global.waSocket && typeof global.waSocket.sendMessage === 'function') {
+                        await global.waSocket.sendMessage(ownerJid, {
+                            text: `╭═══════════════════════════╮\n` +
+                                  `│  ⚠️ *DEVICE UNLINKED*        │\n` +
+                                  `╰═══════════════════════════╯\n\n` +
+                                  `⚠️ *Your device has been disconnected!*\n\n` +
+                                  `═══════════════════════════\n` +
+                                  `🤖 *Bot:* 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘\n` +
+                                  `📱 *Unlinked Device:* ${phoneNumber || 'Your Phone'}\n` +
+                                  `🌐 *Status:* Offline\n` +
+                                  `⏱️ *Disconnected At:* ${new Date().toLocaleString()}\n` +
+                                  `═══════════════════════════\n\n` +
+                                  `Visit the dashboard to re-pair your device:\n` +
+                                  `> ${process.env.RENDER_EXTERNAL_URL || 'https://mani-md-bot-fdkz.onrender.com/'}\n\n` +
+                                  `> © 𝗠𝗔𝗡𝗜 𝗠𝗗 ☘`
+                        });
+                        console.log(`✅ [UNLINK-NOTIFICATION] Sent device unlinked notification to: ${ownerJid}`);
+                    }
+                } catch (unlinkErr) {
+                    console.log('⚠️ Could not send unlink notification:', unlinkErr.message);
+                }
                 
                 // Emit disconnection status to web UI
                 if (typeof global.emitConnectionStatus === 'function') {

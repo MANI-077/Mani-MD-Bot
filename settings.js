@@ -10,7 +10,7 @@ const settings = {
   storeWriteInterval: 10000,
   description: "> ᴅᴇꜱᴄʀɪᴘᴛɪᴏɴ: ᴛʜɪꜱ ʙᴏᴛ ɪꜱ ꜰᴏʀ ᴍᴀɴᴀɢɪɴɢ ɢʀᴏᴜᴘ ᴄᴏᴍᴍᴀɴᴅꜱ ᴀɴᴅ ᴀᴜᴛᴏᴍᴀᴛɪɴɢ ᴛᴀꜱᴋꜱ.",
   caption: "𝗠𝗔𝗡𝗜 𝗠𝗗 ☘",
-  version: "3.1.0",
+  version: "3.1.1",
   prefix: ".",
   timezone: "Asia/Kathmandu",
   updateZipUrl: "",
